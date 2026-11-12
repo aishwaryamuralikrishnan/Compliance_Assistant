@@ -1,4 +1,4 @@
-"""GET /api/eval/report · the evaluation report (eval/README.md section 7), built from the latest run of each set
+"""GET /api/eval/report · the evaluation report (the evaluation report), built from the latest run of each set
 under eval/results/ (or EVAL_RESULTS_DIR) and the notes in eval/report/notes.json. Public and read-only (decided
 29 Oct): the report is for whoever reviews the project, holds no personal data, and the evaluation pages are
 reached from the login screen without signing in. scripts/eval_pdf.py prints their print view."""

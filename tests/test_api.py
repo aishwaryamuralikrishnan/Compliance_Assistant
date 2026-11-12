@@ -1,4 +1,4 @@
-"""The web API (docs/web_app_design.md), through HTTP with FastAPI's TestClient.
+"""The web API, through HTTP with FastAPI's TestClient.
 
 The pure tests (serialisers, layout, Markdown) need nothing; the rest run on the scratch database with two users
 seeded by `api_users` and, where a thread is needed, the scripted worker of `graph_with_scripted_worker`."""

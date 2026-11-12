@@ -1,6 +1,6 @@
-"""Write docs/expert_round2.md, the reviewer's pack for the E6 cases A-006 to A-020, from eval/data/assessments.jsonl.
+"""Write docs/working/expert_round2.md, the reviewer's pack for the E6 cases A-006 to A-020, from eval/data/assessments.jsonl.
 
-    python scripts/expert_round2.py            # writes docs/expert_round2.md
+    python scripts/expert_round2.py            # writes docs/working/expert_round2.md
     python scripts/expert_round2.py --ids A-006 A-007   # a subset
 
 The pack is generated, never edited by hand: when a row changes, run the script again. Fields that are scoring
@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "eval" / "data" / "assessments.jsonl"
-OUT = ROOT / "docs" / "expert_round2.md"
+OUT = ROOT / "docs" / "working" / "expert_round2.md"
 
 DOMAINS = {
     "D1": "Automated decisions and profiling", "D2": "Data sharing and international transfers",

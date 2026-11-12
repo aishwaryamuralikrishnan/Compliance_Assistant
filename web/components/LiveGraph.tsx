@@ -1,7 +1,7 @@
 "use client";
 
 // The live graph: the layout from GET /api/meta/graph-layout drawn as SVG, with a run's `graph` snapshot applied by
-// the rules UI.md describes (the layout comes from compliance_agent/viz.py through the API). Solid edges: the forward path; dashed: a pause or a
+// the rules README.md section 4 describes (the layout comes from compliance_agent/viz.py through the API). Solid edges: the forward path; dashed: a pause or a
 // return into a node that already ran; blue: taken in this run; amber: active or waiting; green: done.
 
 import type { GraphLayout, GraphSnapshot, LayoutNode } from "@/lib/types";

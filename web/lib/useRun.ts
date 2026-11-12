@@ -1,6 +1,6 @@
 "use client";
 
-// Follow one run's event stream (docs/web_app_design.md §3): the latest view, the interrupt, the final body.
+// Follow one run's event stream (the API contract): the latest view, the interrupt, the final body.
 
 import { useEffect, useState } from "react";
 import { subscribeRun } from "@/lib/api";

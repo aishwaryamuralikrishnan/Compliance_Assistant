@@ -1,4 +1,4 @@
-"""Run one evaluation set (eval/README.md) and write results/<set>_<timestamp>/.
+"""Run one evaluation set (the evaluation report) and write results/<set>_<timestamp>/.
 
     python -m eval.run_eval E7                      # the output guardrail on planted faults (no model calls)
     python -m eval.run_eval E12                     # the router and the input screen on routing.jsonl
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     sets = [s for s in SETS if s in BUILT] if args.set == "all" else [args.set]
     for s in sets:
         if s not in BUILT:
-            print(f"{s} is not built yet (eval/README.md, to-do item 6)")
+            print(f"{s} is not built yet (the evaluation report)")
             return 2
     try:
         common.require_eval_db()

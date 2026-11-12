@@ -1,4 +1,4 @@
-"""Sign in with Google (OpenID Connect, Authorization Code with PKCE) — docs/deployment_design.md, section OIDC.
+"""Sign in with Google (OpenID Connect, Authorization Code with PKCE); TECHNICAL.md, Setup and run.
 
     GET /api/auth/providers        {"oidc": true|false, "name": "Google"}   the login page shows the button only when configured
     GET /api/auth/oidc/start       redirect to the provider's authorisation page

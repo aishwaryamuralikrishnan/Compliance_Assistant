@@ -1,4 +1,4 @@
-"""E1 + E2 (eval/README.md): every row of routing.jsonl goes through the input screen (`validate_input`) and the
+"""E1 + E2 (the evaluation report): every row of routing.jsonl goes through the input screen (`validate_input`) and the
 router (`route`) exactly as the graph runs them, and is scored on its route and on the screen's result."""
 from __future__ import annotations
 

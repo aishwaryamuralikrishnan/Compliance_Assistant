@@ -1,4 +1,4 @@
-"""Request and response models of the contract (docs/web_app_design.md §5). Database rows and the assessment
+"""Request and response models of the API contract. Database rows and the assessment
 itself are free-form JSON and are returned as dicts; the models here are the bodies the client sends and the
 small fixed-shape replies."""
 from __future__ import annotations

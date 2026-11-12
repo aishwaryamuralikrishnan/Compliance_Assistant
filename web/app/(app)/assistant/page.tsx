@@ -1,6 +1,6 @@
 "use client";
 
-// The Assistant page (UI.md, on the approved canvas): the request, the progress card while the agent works, then
+// The Assistant page (README.md, sections 1 and 4): the request, the progress card while the agent works, then
 // the assessment as the hero or the short answer; the waiting band while the DPO decides, her decision when it
 // comes (a second run on the same thread, shown in Behind the scenes), the revision form when she requested
 // changes, and the preference note once the thread has completed. One request per conversation.

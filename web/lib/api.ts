@@ -39,7 +39,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }),
 };
 
-/** One Server-Sent Events subscription to a run (docs/web_app_design.md §3). Reconnects are the browser's. */
+/** One Server-Sent Events subscription to a run (the API contract). Reconnects are the browser's. */
 export function subscribeRun(
   runId: string,
   handlers: { view?: (v: unknown) => void; interrupt?: (v: unknown) => void; final?: (v: unknown) => void; error?: (message: string) => void },

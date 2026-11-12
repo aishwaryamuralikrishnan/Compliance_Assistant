@@ -1,144 +1,212 @@
 # Technical notes
 
-Python 3.12 · FastAPI + React (Next.js) · LangGraph + LangChain 1.x · OpenRouter (one key, any vendor) · Postgres 16 + pgvector in Docker (checkpointer, long-term store, RAG corpus).
+Setup, running, models, tests and housekeeping. How the agent works is in [AGENTS.md](AGENTS.md); the tools in [TOOLS.md](TOOLS.md).
+
+## Stack
+
+| Part | Technology |
+|---|---|
+| Language | Python 3.12 |
+| Agent | LangGraph + LangChain 1.x |
+| Models | OpenRouter (one key, any vendor) |
+| Database | Postgres 16 + pgvector in Docker: the checkpointer, the long-term store and the RAG corpus in one database |
+| Backend | FastAPI |
+| Front end | React (Next.js), Node.js 20+ |
 
 ## Project layout
 
-```
-api/                        the web API (FastAPI) over graph.py: auth (JWT cookie), oidc (sign in with Google), threads, reviews, register, memory, meta, evaluation (the public report); docs/web_app_design.md
-web/                        the React (Next.js) front end: login, assistant, review queue, register, memory; the public /evaluation pages; lib/ (API client, hooks), components/ (EvalReport + EvalCharts: the report's sections and inline SVG figures)
-compliance_agent/           the agent package (knows nothing of the UI)
-  config.py                 env + YAML loading (OPENROUTER_API_KEY from the environment)
-  models.py                 model registry: slot -> init_chat_model via OpenRouter
-  db.py                     psycopg pool + schema (legal_chunks, users, assessments, review_tasks, register)
-  memory.py                 Store namespaces, candidate proposals, reflect, role-gated writes
-  auth.py                   bcrypt login, roles.yaml permission helpers
-  repo.py                   assessments, review tasks, register data access
-  export.py                 PDF export of the register (reportlab), assessment as Markdown
-  retention.py              checkpoint retention: prune the saved state of finished threads (admin.py prune-threads)
-  state.py                  GraphState, Assessment / Finding / StatusReply, UserContext
-  graph.py                  StateGraph wiring, run_turn / resume_turn / send_feedback / thread_state
-  tracing.py                LangSmith tagging (no-op while tracing is off)
-  viz.py, trace.py          live-graph layout + tracker and the trace sections, both served as JSON by the API
-  retrieval/                identifiers, hybrid search + RRF, reranker, grader, rewrite, loop
-  tools/                    search_regulation, get_article, lookup_register, request_dpo_review
-  nodes/                    validate_input, route, direct_answer, worker + reviser (+ middleware), guardrail, memory_write, pm_revision
-ingest/                     EUR-Lex download / manual-save adoption, legal-structure chunker, seed script
-config/                     models.yaml (slots + prices), roles.yaml (permissions, memory policy), corpus.yaml
-scripts/                    check_env, list_models, probe_models, probe_slot, probe_grader, probe_provider (the gateway's data policy per call), search, chat, admin, draw_graph (the compiled graph as Mermaid), expert_round2 (the reviewer's pack), eval_pdf (the Evaluation page as PDF), container_start (what the api container runs)
-eval/                       the evaluation harness (eval/README.md): data/ golden sets, harness/ runners + report.py, prompts/ judge, report/ notes.json + evaluation.pdf, results/ (the runs the report reads; versioned since 2 Nov for the hosted report)
-tests/                      pytest; graph flows run on a scratch database with a canned corpus
-docker-compose.yml          three containers: db (pgvector/pgvector:pg16 on a named volume), api (Dockerfile.api), web (web/Dockerfile); docs/containers_design.md
-```
+| Folder or file | What is in it |
+|---|---|
+| `api/` | The web API: auth (JWT cookie), oidc (sign in with Google), threads, reviews, register, memory, meta, evaluation (the public report) |
+| `web/` | The React front end: login, assistant, review queue, register, memory, the public `/evaluation` pages |
+| `compliance_agent/` | The agent package. It knows nothing of the UI |
+| `compliance_agent/graph.py` | The graph wiring: `run_turn`, `resume_turn`, `send_feedback`, `thread_state` |
+| `compliance_agent/nodes/` | `validate_input`, `route`, `direct_answer`, `worker` + `reviser` (+ middleware), `guardrail`, `memory_write`, `pm_revision` |
+| `compliance_agent/retrieval/` | Identifiers, hybrid search + RRF, reranker, grader, rewrite, the loop |
+| `compliance_agent/tools/` | `search_regulation`, `get_article`, `lookup_register`, `request_dpo_review` |
+| `compliance_agent/models.py` | The model registry: slot → model via OpenRouter |
+| `compliance_agent/memory.py` | The store namespaces, memory proposals, role-gated writes |
+| `compliance_agent/db.py`, `repo.py` | The database pool, the schema, data access |
+| `compliance_agent/export.py`, `retention.py` | The PDF export of the register; checkpoint retention |
+| `compliance_agent/viz.py`, `trace.py` | The live-graph layout and the trace, served as JSON by the API |
+| `ingest/` | EUR-Lex download, the legal-structure chunker, the seed script |
+| `config/` | `models.yaml` (slots and prices), `roles.yaml` (permissions, memory policy), `corpus.yaml` |
+| `scripts/` | `check_env`, `admin`, `list_models`, the probes (`probe_models`, `probe_slot`, `probe_grader`, `probe_provider`), `draw_graph`, `eval_pdf`, `container_start` |
+| `eval/` | The evaluation harness: `data/` (the test sets), `harness/`, `prompts/`, `report/` (the PDF), `results/` |
+| `tests/` | pytest. Graph flows run on a scratch database with a canned corpus |
+| `docs/Compliance/` | Evidence for README section 3: the gateway's terms and privacy policy, the account's data-policy settings, the probe output |
+| `docs/images/` | The pictures used in the documentation |
+| `site/` | The project website (static HTML, deployed on Vercel) |
+| `docker-compose.yml` | Three containers: `db`, `api` (`Dockerfile.api`), `web` (`web/Dockerfile`) |
 
-## Setup (once)
+## Setup and run
+
+**Once:**
 
 ```powershell
 python -m pip install -r requirements.txt
-copy .env.example .env            # DB defaults are fine; keep OPENROUTER_API_KEY in the OS environment
+copy .env.example .env            # DB defaults are fine; put OPENROUTER_API_KEY in .env or the OS environment
 ```
 
-## Start the database
-
-Docker Desktop must be running.
+**Start the database** (Docker Desktop must be running):
 
 ```powershell
 docker compose up -d db
 docker compose ps                 # wait until compliance_db is "healthy"
 ```
 
-(`docker compose up -d` without `db` also builds and starts the API and the front end as containers; see *Run everything in containers* below.)
-
-## Check the environment (smoke test)
+**Check the environment and seed** (first time only):
 
 ```powershell
-python scripts/check_env.py       # key, Postgres + pgvector, corpus counts, one model call, one embedding
+python scripts/check_env.py       # shows the OpenRouter key in use (masked), Postgres + pgvector, corpus counts, one model call, one embedding
+python -m ingest.seed all         # schema, corpus from data/corpus/raw/, users, seeded memory
 ```
 
-First time only: `python -m ingest.seed all` (schema, corpus from `data/corpus/raw/`, users, seeded memory). EUR-Lex pages must be saved manually from a browser under the names printed by `python -m ingest.seed urls`.
+The EUR-Lex pages are saved by hand from a browser, under the names printed by `python -m ingest.seed urls`.
 
-## Run
+**Run:**
 
 ```powershell
-uvicorn api.main:app --reload --port 8000       # the web API, http://localhost:8000/docs (docs/web_app_design.md)
-cd web; npm install; npm run dev               # the React front end, http://localhost:3000 (Node.js 20+; proxies /api to :8000)
+uvicorn api.main:app --reload --port 8000       # the web API: http://localhost:8000/docs
+cd web; npm install; npm run dev               # the front end: http://localhost:3000 (proxies /api to :8000)
 ```
 
-Accounts: `lena.k` (product manager), `m.weber` (DPO); passwords from `.env`. **Sign in with Google** (`api/oidc.py`, OpenID Connect with PKCE) appears on the login page when `OIDC_CLIENT_ID` is set: a first sign-in creates a product manager from the verified e-mail address, the addresses in `DPO_EMAILS` sign in as DPO, and `OIDC_DEFAULT_ROLE=deny` admits only accounts the table already knows; the role is decided by the `users` table at every sign-in, never by the provider. The callback runs through the front end's `/api` proxy so the session cookie stays first-party; the redirect URI to register is `PUBLIC_BASE_URL` + `/api/auth/oidc/callback` (`docs/deployment_design.md`).
+**Sign in.** Two seeded demo accounts: `lena.k` (product manager) and `m.weber` (DPO), passwords from `.env`. Sign in with Google appears on the login page when `OIDC_CLIENT_ID` is set:
+
+- a first sign-in creates a product manager from the verified e-mail address;
+- the addresses in `DPO_EMAILS` sign in as DPO;
+- `OIDC_DEFAULT_ROLE=deny` admits only accounts the users table already knows;
+- the role is decided by the users table at every sign-in, never by Google;
+- the redirect URI to register with Google is `PUBLIC_BASE_URL` + `/api/auth/oidc/callback`.
 
 ## Run everything in containers
 
-The alternative to the two commands above, for a hand-over or a reviewer: the API and the front end as containers next to the database (`docs/containers_design.md`).
+The alternative for a hand-over or a reviewer: the API and the front end as containers next to the database.
 
 ```powershell
 docker compose up --build         # first time: a few minutes while the corpus is downloaded, chunked and embedded
 docker compose logs -f api        # "first start: ...", then "serving the API on port 8000"
 ```
 
-Then http://localhost:3000 (the app), http://localhost:8000/docs (the API), http://localhost:3000/evaluation (the report, reading `eval/results/` from the project folder). The `api` container waits for the database, runs the schema statements and seeds on first start (`scripts/container_start.py`): an empty corpus table is filled through the gateway (`OPENROUTER_API_KEY` must be in `.env` or the environment; the EUR-Lex pages come from `data/corpus/raw/`, bind-mounted, or are downloaded), an empty users table gets the two accounts from `SEED_PM_PASSWORD` / `SEED_DPO_PASSWORD` and the seeded memory. A restart never re-embeds or overwrites memory; `SEED_ON_START=0` skips seeding altogether. The front end image bakes in the address it proxies `/api/*` to (build argument `API_URL`, default `http://api:8000`). `docker compose down -v` wipes the database and the next start seeds again.
+Then: http://localhost:3000 (the app), http://localhost:8000/docs (the API), http://localhost:3000/evaluation (the report).
+
+- On first start the `api` container waits for the database, creates the schema and seeds: the corpus (needs `OPENROUTER_API_KEY`), the two accounts (`SEED_PM_PASSWORD`, `SEED_DPO_PASSWORD`) and the seeded memory.
+- A restart never re-embeds or overwrites memory. `SEED_ON_START=0` skips seeding.
+- `docker compose down -v` wipes the database; the next start seeds again.
 
 ## Models
 
-Every node asks the model registry for a *slot*; `config/models.yaml` maps each slot to an OpenRouter model id, a display name and a price. Changing a model is one line there, no code change; the README's node table and the app's sidebar (*Models per node*) read the names from this file.
+Every node asks the model registry for a *slot*. `config/models.yaml` maps each slot to an OpenRouter model id, a display name and a price. Changing a model is one line there, no code change.
 
-| Graph node | Model type | Model | Slot in `config/models.yaml` |
+| Graph node | Model type | Model | Slot |
 |---|---|---|---|
-| validate_input | small LLM (injection / topic classifier, structured output) + regex | Gemini 3.1 Flash Lite | `cheap` |
-| route | classifier (returns a tier and a confidence); LLM fallback on `cheap` | TypeSafe Jev Router | `router` |
-| direct_answer | heavy LLM (quick answer, one retrieval pass) | GPT-6 Luna | `worker_quick` |
-| direct_answer · retrieval | embeddings + cross-encoder reranker | Text Embedding 3 Small, Rerank 4 Fast | `embeddings`, `reranker` |
-| worker | heavy LLM (plans, calls tools, drafts the assessment) | GPT-6 Luna | `worker_full` |
-| reviser | heavy LLM (v2 after the DPO requested changes; same tools and gate) | GPT-6 Luna | `worker_full` |
-| pm_revision | none (pause for the product manager; deterministic screen of the revised description) | - | - |
-| worker · search_regulation | embeddings + reranker; an LLM grades the passages (structured output); a small LLM rewrites the query after a miss | Text Embedding 3 Small, Rerank 4 Fast, GPT-6 Luna (grader), Gemini 3.1 Flash Lite (rewrite) | `embeddings`, `reranker`, `grader`, `cheap` |
-| worker · summariser | small LLM (long threads only) | Gemini 3.1 Flash Lite | `cheap` |
-| tool_gate, interrupt | none (deterministic) | – | – |
-| output_guardrail | none (deterministic checks; a regeneration goes back to the worker) | – | – |
-| memory_write · reflect | small LLM (rephrases free text into one reusable sentence) | Gemini 3.1 Flash Lite | `cheap` |
-| *(evaluation only)* judge | small LLM from a third vendor, scores outputs against the rubric | Claude Haiku 5.5 | `judge` |
+| validate_input | small LLM + regex | Gemini 3.1 Flash Lite | `cheap` |
+| route | classifier; LLM fallback | TypeSafe Jev Router | `router` |
+| direct_answer | heavy LLM | GPT-6 Luna | `worker_quick` |
+| worker | heavy LLM | GPT-6 Luna | `worker_full` |
+| reviser | heavy LLM | GPT-6 Luna | `worker_full` |
+| search: embeddings | embeddings | Text Embedding 3 Small | `embeddings` |
+| search: reranker | small LLM, listwise (since 3 Nov) | Gemini 3.1 Flash Lite | `reranker` (`method: llm`) |
+| search: grader | heavy LLM | GPT-6 Luna | `grader` |
+| search: query rewrite | small LLM | Gemini 3.1 Flash Lite | `cheap` |
+| worker · summariser | small LLM | Gemini 3.1 Flash Lite | `cheap` |
+| memory_write · reflect | small LLM | Gemini 3.1 Flash Lite | `cheap` |
+| tool gate, interrupt, output_guardrail, pm_revision | none (deterministic) | – | – |
+| *(evaluation only)* judge | small LLM from a third vendor | Claude Haiku 5.5 | `judge` |
 
-Setting of 23 Oct 2026 (development; the showcase lines for Mistral Large 4 are kept as comments in `config/models.yaml`): GPT-6 Luna ($0.10 / $0.50 per 1M tokens, cached input $0.01) in the two worker slots and as the retrieval grader, Gemini 3.1 Flash Lite ($0.25 / $1.50) for the small helper calls (input screen, query rewrite, summariser, reflect), and Claude Haiku 5.5 as the evaluation judge, from a third vendor so that no model scores its own family's output. A full assessment on this setting costs a few cents (the $0.18 figure in EVALUATION.md was measured on Mistral Large 4, 22 Oct; the run-stats estimate covers the worker's calls only, see UI.md). Alternatives for the workers are noted in `config/models.yaml` (DeepSeek V4.1 Flash cheaper; GPT-6 Sol and Claude Sonnet 5.5 at the frontier tier); `python scripts/list_models.py <word>` lists the ids your key can use. The embeddings slot must not change after the corpus is indexed (re-index with `python -m ingest.seed reindex` if it does).
+Setting of 3 November 2026. Prices per 1M tokens: GPT-6 Luna $0.10 in / $0.50 out (cached input $0.01); Gemini 3.1 Flash Lite $0.25 / $1.50. A full assessment costs a few cents.
 
-**The grader is a slot of its own, and it may be the worker's model.** Grading is a small reasoning job: the grader must name the provision the retrieved passages lack, so that the rewrite can go to it, and `python scripts/probe_grader.py` (ten queries, six in plain English) showed that the cheapest models cannot do that: Gemini 3.1 Flash Lite asked for judgements the law does not state and left three of the six unresolved, GPT-5.4 mini resolved three at eight times Luna's price, GPT-6 Luna named the article every time and resolved five; the figures are in `config/models.yaml`. A grader that is the worker's own model would be a problem if it judged the worker's text; this grader doesn't. It judges passages that come from the database through the embeddings and the reranker, against a ten-word query, and it never sees an assessment. The independence that matters in this project is the evaluation judge's, which is why Claude Haiku stays out of the app. The slot can still be pointed at any other model with one config line; the probe is the way to compare candidates.
+- The judge comes from a third vendor, so no model scores its own family's output.
+- The reranker switched from Cohere's Rerank 4 Fast to the small model on 3 November. The gateway's reranker has no zero-data-retention endpoint.
+- The embeddings slot must not change after the corpus is indexed. If it does, re-index with `python -m ingest.seed reindex`.
+- `python scripts/list_models.py <word>` lists the model ids your key can use. Alternatives for the workers are noted in `config/models.yaml`.
+- The run-stats estimate in the app covers the worker's calls only. The gateway's activity page is the figure to quote.
+
+**Why the grader is the heavy model.** The grader must name the provision the retrieved passages lack, so that the rewrite can go to it. `python scripts/probe_grader.py` (ten queries) showed that the cheapest models cannot do that reliably; GPT-6 Luna named the article every time. The grader never sees an assessment, only passages from the database against a ten-word query, so using the worker's model is not a conflict. The slot can be pointed at any other model with one line; the probe is the way to compare candidates.
+
+## Run the evaluation
+
+The harness never runs against the demo database. Every evaluation case runs the real app code: it stores a draft, creates a review task in the DPO's queue and leaves the thread paused. Run against the demo database, a set of 20 cases would fill the queue and the memory with test data, and the learned lessons would change the next run's results. The harness therefore needs its own copy, made once from the seeded one (the corpus and its vectors are copied, nothing is re-embedded):
+
+```sql
+CREATE DATABASE compliance_eval TEMPLATE compliance;
+```
+
+Set `EVAL_DATABASE_URL` in `.env` to that database (for example `postgresql://compliance:compliance@localhost:5432/compliance_eval`). Before each run, reset the copy to the seeded state:
+
+```powershell
+$env:DATABASE_URL = "postgresql://compliance:compliance@localhost:5432/compliance_eval"
+python scripts/admin.py reset
+python scripts/admin.py memory --clear-learned
+python scripts/admin.py memory          # must list seeded items only
+Remove-Item Env:DATABASE_URL
+```
+
+Then run a set (`pip install -r requirements-eval.txt` first):
+
+```powershell
+python -m eval.run_eval check           # validates the test data, no model calls
+python -m eval.run_eval E6              # one set: E12, E3, E5, E6, E7 or all; writes eval/results/<set>_<timestamp>/
+```
+
+The method, the sets and the results are in the public report (README section 2). A full run of all sets costs about $1 on the gateway.
 
 ## Tests
 
 ```powershell
-pytest tests -q                                                  # 78 tests, about 2 min (bcrypt and the Postgres round trips)
-pytest tests -q --cov=compliance_agent --cov=api --cov-report=term-missing    # with line coverage (pytest-cov, requirements-eval.txt)
+pytest tests -q                                                               # 78 tests, about 2 min
+pytest tests -q --cov=compliance_agent --cov=api --cov-report=term-missing    # with line coverage
 ```
 
-Writing tests run on a scratch database (`compliance_test`, created automatically next to the real one), so the register and memory are never touched by a test run. No test calls a model or the gateway: the worker and the reviser run a scripted model, retrieval, corpus and the input screens are canned (`tests/fakes.py`), and the unit tests of the retrieval loop, the grader, the rewrite, the reranker, the router, the input screen and the memory proposals replace the model call with a stub that answers what the test needs.
+- Tests run on a scratch database (`compliance_test`, created automatically). The register and the memory are never touched.
+- No test calls a model or the gateway. The worker and the reviser run a scripted model; retrieval, corpus and the input screens are canned (`tests/fakes.py`).
+- Line coverage on 23 October 2026: **92 %** of `compliance_agent/` and `api/` (89 % without the seeded corpus). Coverage measures the code, not the agent's output quality; that is the evaluation (README section 2).
 
-Line coverage on 23 Oct 2026: **92 %** of `compliance_agent/` and `api/` (3,178 statements, 257 missed) on a machine with the seeded corpus, 89 % without it (the three database tests of `tests/test_retrieval.py` then skip), up from 82 % with the 41 tests before to-do item 4. What the tests cover, by file: `tests/test_graph.py` the graph's flows (reject, full assessment through the DPO's three decisions, the revision loop, the guardrail's rules, retention, tracing tags, the live-graph layout); `tests/test_api.py` the web API through HTTP including the event stream and its replay; `tests/test_api_edges.py` its refusals and error reports (busy or paused thread, a run that raises, a view the stream cannot serialise, forged and expired cookies); `tests/test_oidc.py` the Google sign-in with the provider stubbed (first sign-in, the DPO allowlist, refusals, invitation-only mode); `tests/test_quick_path.py` the quick path (a question routed `quick`, the empty answer reported rather than hidden, a preference note on a quick thread); `tests/test_retrieval_loop.py` every branch of the agentic RAG loop and the grader's decision rule; `tests/test_rerank_and_tools.py` the reranker's three paths and the tools' own refusals; `tests/test_screens_and_memory.py` the input screen, the router's fallback order, the memory proposals and the role-gated store write; `tests/test_retrieval.py` identifiers and rank fusion (its database tests need a seeded corpus and are skipped otherwise); `tests/test_chunker.py` and `tests/test_seed_offline.py` the ingestion. The one file still below 80 %: `tracing.py` (74 %: the LangSmith branches, off in the tests); `retrieval/search.py` is at 98 % with the seeded corpus and 47 % without, because the SQL of the hybrid search runs only against it. Coverage measures the code, not the agent's output quality, which is EVALUATION.md.
+| Test file | What it covers |
+|---|---|
+| `test_graph.py` | The graph's flows: reject, a full assessment through the DPO's three decisions, the revision loop, the guardrail's rules, retention, the live-graph layout |
+| `test_api.py`, `test_api_edges.py` | The web API over HTTP, the event stream and its replay, refusals and error reports |
+| `test_oidc.py` | Google sign-in with the provider stubbed: first sign-in, the DPO allow-list, refusals |
+| `test_quick_path.py` | The quick path: a question routed quick, an empty answer reported, a preference note |
+| `test_retrieval_loop.py` | Every branch of the agentic RAG loop and the grader's decision rule |
+| `test_rerank_and_tools.py` | The reranker's three paths and the tools' own refusals |
+| `test_screens_and_memory.py` | The input screen, the router's fallback order, the memory proposals, the role-gated store write |
+| `test_retrieval.py` | Identifiers and rank fusion (its database tests need a seeded corpus) |
+| `test_chunker.py`, `test_seed_offline.py` | The ingestion |
 
-## Conventions
+## Two things to know before changing the model code
 
-- **No fallback invents data or hides an error.** When something the agent depends on fails (the corpus lookup behind citation verification, the memory store, the DPO-comment lookup in the PDF export), the code logs the real exception with `logging` and reports the state to the user through the trace or the UI; it never substitutes an empty or made-up result silently. Citation verification therefore has three states (`verified`, `unknown`, `unreachable`), and only `unknown` triggers regeneration or removal. The API prints warnings to the terminal it was started from, and a run that fails ends its event stream with an `error` event the page shows.
-- **A condensed thread never loses its request.** The summariser pins the latest request message (feature description or revision brief) in front of the summary verbatim and lets the cheap model see it when writing the summary; see AGENTWORKER.md.
-- **Prompt caching is the provider's job.** Mistral caches prompt prefixes implicitly (64-token blocks, cached tokens at 10% of the input rate); the gateway reports cached tokens and the run-stats strip shows and prices them (`cached_input` in `config/models.yaml`). Nothing is sent to enable it, so a provider without caching simply reports zero.
-- **The message history sent to a model is always balanced.** Mistral (and other strict providers) reject a request unless every assistant tool call is answered by exactly one tool message, in order. Two places guarantee that: a model output that cannot be used (a tool call whose JSON is malformed or cut off at `max_tokens`) is answered at once with an error tool message by `RoleToolsMiddleware`, and the trace shows *model output unusable*; and before every model call `repair_tool_pairs` checks the history it is about to send (unanswered calls, orphan tool messages, repeated ids) and reports any repair in the trace. If a provider still rejects a request, the trace and the log show the shape of the history that was sent (role, tool call ids, answered ids), which is enough to see why.
+- **Prompt caching is the provider's job.** Nothing is sent to enable it. The gateway reports cached tokens and the run stats price them (`cached_input` in `config/models.yaml`).
+- **The message history sent to a model is always balanced.** Strict providers reject a request unless every tool call has exactly one answer, in order. An unusable model output is answered at once with an error tool message. `repair_tool_pairs` checks the history before every call and reports any repair in the trace.
 
-## Register, memory and thread clean-up
+## Housekeeping
 
-`scripts/admin.py` lists and prunes what testing leaves behind; every delete asks for confirmation (`--yes` skips it).
+`scripts/admin.py` lists and prunes what testing leaves behind. Every delete asks for confirmation (`--yes` skips it).
 
 ```powershell
-python scripts/admin.py register                 # list
+python scripts/admin.py register                 # list the register
 python scripts/admin.py register --dedupe        # keep the newest entry per title
-python scripts/admin.py memory                   # list every item with key, source, author
+python scripts/admin.py memory                   # list every memory item with key, source, author
 python scripts/admin.py memory --clear-learned   # back to the seeded memory
-python scripts/admin.py reset                    # fresh demo state: no assessments, tasks, register entries,
-                                                 # threads or learned memory; corpus, users, seeded memory stay
-python scripts/admin.py prune-threads --days 30  # checkpoint retention: remove the saved state of finished
-                                                 # conversations with no activity for 30 days (--dry-run lists only)
+python scripts/admin.py reset                    # fresh demo state; corpus, users and seeded memory stay
+python scripts/admin.py prune-threads --days 30  # delete the saved state of finished conversations older than 30 days
+python scripts/admin.py forget <user>            # a person's erasure request
 ```
 
-Restart the API after a `reset` (the run registry and the compiled graph live in the process).
+Restart the API after a `reset`. Against the hosted database, set `DATABASE_URL` to its connection string for that one command.
 
-**Checkpoint retention.** The checkpointer saves the whole graph state after every node of every thread (that is what makes interrupt and resume work), so it grows without bound. `prune-threads` deletes the checkpoints of threads that are *finished* and older than the cut-off, and nothing else: assessments, review tasks, the register and long-term memory are records and stay. A thread is kept whatever its age while anything is open on it: paused at an interrupt (waiting for the DPO or for the product manager), nodes still scheduled (a run that stopped half-way), a pending review task, or a latest assessment waiting for changes; a thread whose state cannot be read is kept and reported rather than deleted on a guess. A pruned thread's conversation page is gone, its register entry and decision history are not. Run it from a scheduled task once the app is hosted (`compliance_agent/retention.py` is the module behind the command).
+**Checkpoint retention** (`prune-threads`):
 
-**A person's deletion request.** `python scripts/admin.py forget <username or e-mail>` carries out an erasure request from the privacy notice: it deletes the account, the person's conversations with their saved state, the assessments and review requests they made and their own memory namespace; register entries and memory items that are the organisation's record stay, with the person's name replaced by `deleted user` (a record kept under a duty is pseudonymised, not destroyed). Against the hosted database: set `DATABASE_URL` to its connection string for that one command, as for `reset`.
+- The checkpointer saves the whole graph state after every node. That is what makes pause and resume work, and it grows without bound.
+- `prune-threads` deletes the checkpoints of threads that are finished and older than the cut-off. Nothing else: assessments, review tasks, the register and the memory stay.
+- A thread with anything open on it is kept, whatever its age: paused for the DPO or the product manager, a run stopped half-way, a pending review task.
+- A thread whose state cannot be read is kept and reported, not deleted on a guess.
+- On the hosted demo a nightly GitHub Actions job runs it (`compliance_agent/retention.py`).
+
+**A person's deletion request** (`forget`):
+
+- Deleted: the account, the person's conversations with their saved state, the assessments and review requests they made, their own memory namespace.
+- Kept: register entries and memory items that are the organisation's record, with the person's name replaced by `deleted user`.
 
 ## Stop
 

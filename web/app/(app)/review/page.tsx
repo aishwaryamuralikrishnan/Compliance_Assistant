@@ -1,6 +1,6 @@
 "use client";
 
-// The DPO's review queue (UI.md, on the approved canvas): the pending requests on the left, the selected request's
+// The DPO's review queue (README.md, sections 1 and 4): the pending requests on the left, the selected request's
 // review form in the middle, the decision's run in Behind the scenes, the outcome below with "Keep as a good
 // example" after an approval, and the decision history. For a revision (v2), the previous version and what was asked
 // for sit above the form, collapsed, so the comparison is on the main display and not in the panel.

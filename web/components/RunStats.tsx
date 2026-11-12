@@ -1,6 +1,6 @@
 import type { RunStats as Stats } from "@/lib/types";
 
-/** The run-stats tiles (UI.md "Run stats"): the estimate covers the calls the graph streams back; the gateway's
+/** The run-stats tiles (README.md, section 4): the estimate covers the calls the graph streams back; the gateway's
  *  activity page is the figure to quote. */
 export default function RunStats({ stats }: { stats: Stats | null }) {
   if (!stats) return <div className="muted small">no run yet</div>;

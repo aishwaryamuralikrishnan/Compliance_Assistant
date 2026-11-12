@@ -1,6 +1,6 @@
 "use client";
 
-// The processing register (UI.md): every entry the DPO approved and recorded, the full assessment under each, the
+// The processing register (README.md, section 4): every entry the DPO approved and recorded, the full assessment under each, the
 // v1 → v2 history for revisions, and the PDF export for the DPO.
 
 import { useEffect, useState } from "react";

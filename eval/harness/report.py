@@ -342,7 +342,7 @@ def e3_detail(summary: dict[str, Any] | None, cases: list[dict[str, Any]] | None
 
 COST_LABELS = {"E12": "E1 · E2", "E3": "E3 · E4"}   # one run serves two sets
 
-# the shared domain list (eval/README.md section 3): the law each area rests on, as the Legal domains tab draws it
+# the shared domain list (the evaluation report): the law each area rests on, as the Legal domains tab draws it
 GDPR, AI = "gdpr", "ai"
 DOMAINS = [
     {"id": "D1", "name": "Automated decisions, profiling", "law": GDPR, "articles": [("Art. 22", GDPR), ("Rec. 71", GDPR), ("Art. 4(4)", GDPR), ("Art. 35(3)(a)", GDPR)]},
@@ -356,7 +356,7 @@ DOMAINS = [
     {"id": "D4", "name": "AI that is not high-risk", "law": AI, "articles": [("Art. 50", AI), ("Art. 5", AI), ("Art. 6(3)", AI)]},
 ]
 
-# the confusable pairs (eval/README.md section 5), each half as a short phrase with the answer that tells the two apart;
+# the confusable pairs (the evaluation report), each half as a short phrase with the answer that tells the two apart;
 # the result of each half comes from the run: E6 verdict and flags right, E3 the provision among the passages, E5 the answer cited it, E1 the route
 PAIRS_E6 = [
     ("A-002", "a transfer the organisation's facts do not cover", "safeguards", "Art. 46", "A-003", "a transfer the facts do cover", "Covered", "Art. 45"),

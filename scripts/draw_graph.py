@@ -1,6 +1,6 @@
 """Draw the compiled orchestrator graph, as LangGraph sees it, next to the hand-drawn live graph of the UI.
 
-    python scripts/draw_graph.py            # writes docs/images/compiled_graph.mmd and compiled_graph_xray.mmd (Mermaid text)
+    python scripts/draw_graph.py            # writes docs/working/images/compiled_graph.mmd and compiled_graph_xray.mmd (Mermaid text)
     python scripts/draw_graph.py --png      # also renders PNGs through mermaid.ink (needs internet), or paste the .mmd into mermaid.live
 
 The outer drawing has exactly the nodes and edges the UI's live graph is pinned to (tests/test_graph.py, layout test); the
@@ -30,7 +30,7 @@ def _mermaid(graph, xray: bool) -> str:
 
 
 def main() -> None:
-    out = ROOT / "docs" / "images"
+    out = ROOT / "docs" / "working" / "images"
     g = build_graph()
     for name, xray in (("compiled_graph", False), ("compiled_graph_xray", True)):
         (out / f"{name}.mmd").write_text(_mermaid(g, xray), encoding="utf-8")

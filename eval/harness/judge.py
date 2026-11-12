@@ -1,4 +1,4 @@
-"""The two judge calls (eval/README.md sections 1 and 6), on the `judge` slot through the app's model registry:
+"""The two judge calls (the evaluation report), on the `judge` slot through the app's model registry:
 the key-finding judgement against the rubric (E6) and RAGAs-style faithfulness, own implementation (E5, E6)."""
 from __future__ import annotations
 

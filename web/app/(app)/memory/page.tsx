@@ -1,6 +1,6 @@
 "use client";
 
-// Long-term memory (UI.md): the Store's three namespaces with provenance; seeded items grey, learned items blue.
+// Long-term memory (AGENTS.md, section 2.1): the Store's three namespaces with provenance; seeded items grey, learned items blue.
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";

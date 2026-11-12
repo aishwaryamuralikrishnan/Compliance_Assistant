@@ -1,6 +1,6 @@
 # Compliance Assistant — web front end
 
-Next.js (App Router, TypeScript) over the FastAPI backend in `../api` (see `../docs/web_app_design.md`).
+Next.js (App Router, TypeScript) over the FastAPI backend in `../api` (the API contract is the OpenAPI page at http://localhost:8000/docs).
 
     npm install
     npm run dev          # http://localhost:3000; the API must run on :8000 (uvicorn api.main:app --reload --port 8000)

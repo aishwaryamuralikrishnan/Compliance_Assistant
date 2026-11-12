@@ -1,4 +1,4 @@
-"""The web API: FastAPI over the run API in `compliance_agent.graph` (docs/web_app_design.md).
+"""The web API: FastAPI over the run API in `compliance_agent.graph` (the API contract; see the OpenAPI page at /docs).
 
     uvicorn api.main:app --reload --port 8000        then http://localhost:8000/docs
 

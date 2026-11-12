@@ -1,4 +1,4 @@
-"""E6 (eval/README.md): every feature description of assessments.jsonl is run through `run_turn` as a product
+"""E6 (the evaluation report): every feature description of assessments.jsonl is run through `run_turn` as a product
 manager would send it, and the assessment at the DPO's pause is scored: verdict, risk level, flags, must-cite
 recall over the verified citations, the key findings by the judge with the rubric, must_not, faithfulness of the
 findings to the passages and memory items the worker was given, and the run's figures. The module also writes

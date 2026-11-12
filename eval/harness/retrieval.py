@@ -1,4 +1,4 @@
-"""E3 + E4 (eval/README.md): every question of retrieval.jsonl is searched twice, with the agentic loop and with
+"""E3 + E4 (the evaluation report): every question of retrieval.jsonl is searched twice, with the agentic loop and with
 one ungraded pass, and scored on whether the must provisions are among the returned passages (article level).
 E4 reads the grades the loop made on the way: the grader's verdict per attempt against whether a must provision
 was among that attempt's five passages, and a threshold sweep on the same logged grades."""

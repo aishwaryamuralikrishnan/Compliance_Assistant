@@ -1,4 +1,4 @@
-"""Shared pieces of the evaluation harness (eval/README.md): the golden files, the evaluation database guard, the
+"""Shared pieces of the evaluation harness (the evaluation report): the golden files, the evaluation database guard, the
 citation matching at article level, the usage counter that prices every model call of a case, the captured stream
 writer for calling a graph node directly, and the results writer (cases.jsonl, summary.json, summary.md)."""
 from __future__ import annotations

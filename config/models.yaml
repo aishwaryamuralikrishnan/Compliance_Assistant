@@ -96,7 +96,7 @@ slots:
   # Cross-encoder reranker used inside search_regulation (top-20 -> top-5).
   reranker:
     model: cohere/rerank-4-fast             # verified via POST /rerank (alternative: cohere/rerank-4-pro)
-    name: Rerank 4 Fast
+    name: Gemini 3.1 Flash Lite (listwise)   # display name for the app's Models per node; the cheap model reranks while method is llm. Set back to Rerank 4 Fast with method: api
     endpoint: /rerank                        # relative to base_url; falls back to LLM listwise rerank on error
     top_n: 5
     # method: api | llm. llm since 3 Nov: the gateway's reranker has no zero-data-retention endpoint, so the account's

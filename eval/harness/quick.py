@@ -1,4 +1,4 @@
-"""E5 (eval/README.md): every question of quick.jsonl is run through `run_turn` as a product manager would ask
+"""E5 (the evaluation report): every question of quick.jsonl is run through `run_turn` as a product manager would ask
 it; a question the router sends down the quick path gets its answer scored on must-cite recall, invented
 citations (before the guardrail marked them), faithfulness to the retrieved passages, and length."""
 from __future__ import annotations

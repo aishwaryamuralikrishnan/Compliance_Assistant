@@ -1,6 +1,6 @@
 """Sign in with Google (api/oidc.py): the provider is stubbed (discovery, code exchange, ID-token verification), the
 rest runs for real — the state cookie, the users row created or matched, the role from the DPO allowlist or the
-default, the session cookie, the refusals. docs/deployment_design.md, section OIDC."""
+default, the session cookie, the refusals. TECHNICAL.md, Setup and run."""
 from __future__ import annotations
 
 import os

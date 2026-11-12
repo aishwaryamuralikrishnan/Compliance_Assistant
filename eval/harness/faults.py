@@ -1,4 +1,4 @@
-"""E7 (eval/README.md): the output guardrail receives a well-formed assessment with one fault planted and must take
+"""E7 (the evaluation report): the output guardrail receives a well-formed assessment with one fault planted and must take
 the action its code promises. The assessment is built from a case's expected fields in assessments.jsonl, so the
 planted fault is the only thing wrong with it. No model is called; the corpus is queried for the citations."""
 from __future__ import annotations

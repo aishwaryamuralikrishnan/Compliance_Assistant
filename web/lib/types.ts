@@ -1,4 +1,4 @@
-// The shapes of the API contract (docs/web_app_design.md §3 and §5). Free-form JSON from the database (assessments,
+// The shapes of the API contract (the API contract). Free-form JSON from the database (assessments,
 // rows) stays loosely typed on purpose: the pages show what the graph produced.
 
 export type Role = "product_manager" | "dpo";

@@ -1,6 +1,6 @@
 "use client";
 
-// The DPO's review form (UI.md "Review queue", on the approved canvas): the findings with editable severity and
+// The DPO's review form (README.md, section 1.2): the findings with editable severity and
 // wording, the comment, "What the assistant will remember" (the deterministic candidates, re-fetched as she types),
 // and the three decisions. Returns nothing itself: the decision is a resume of the thread started by the page.
 
