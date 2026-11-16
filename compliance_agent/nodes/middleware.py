@@ -1,8 +1,9 @@
 """Middleware that lives on the worker subgraph.
 
 RoleToolsMiddleware  (wrap_model_call)
-    Binds only the tools the current role may call and builds the system prompt for this
-    call: base instructions + long-term memory (org facts, lessons, this user's prefs).
+    Binds only the tools the current role may call. The system prompt is static (the agent's instructions plus
+    the role note). Long-term memory (org facts, lessons, this user's prefs) is data: it travels in the request
+    message, inside <org_memory> and <user_preferences>, never in the system prompt.
 
 ToolGateMiddleware   (wrap_tool_call)   -- the "tool_gate" of the architecture
     Re-checks the permission on every call (defence in depth), detects repeated identical
@@ -23,7 +24,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langgraph.config import get_config, get_stream_writer
 from langgraph.types import interrupt
 
-from .. import auth, memory, repo, tracing
+from .. import auth, memory, prompts, repo, tracing
+from ..prompting import tag
 
 log = logging.getLogger(__name__)
 
@@ -44,24 +46,7 @@ def _writer() -> Callable[[dict], None]:
         return lambda _e: None
 
 
-SUMMARY_PROMPT = """You condense the older part of a compliance assistant's working thread so the assistant can carry on.
-The user's request itself is kept in the thread unchanged; do not repeat it. Write a replacement for the messages
-below with exactly these sections:
-
-## DELIVERABLE
-What is still owed: for a feature description, the Assessment structured output (verdict, findings with
-citations, next steps, flags); for anything else, the StatusReply. State plainly that it has NOT been
-produced yet if that is the case.
-
-## FINDINGS SO FAR
-The provisions retrieved so far with their exact citation labels (e.g. "GDPR Art. 22(1)"), register lookups
-and their results, and conclusions already reached. Keep every citation label exactly as returned.
-
-Respond ONLY with these sections.
-
-<messages>
-{messages}
-</messages>"""
+SUMMARY_PROMPT = prompts.get("summary")          # config/prompts/agents.yaml; {messages} is filled in by the summariser
 
 REQUEST_KIND = "request"           # additional_kwargs["kind"] on the human message that carries the user's request or the revision brief
 SUMMARY_INPUT_TOKENS = 12000       # how much of the older part the cheap model reads when it condenses (the stock default is 4000)
@@ -133,59 +118,8 @@ class TracedSummarizationMiddleware(SummarizationMiddleware):
 # System prompt
 # --------------------------------------------------------------------------------------
 
-WORKER_PROMPT = """You are the Compliance Assistant of an EU company. Your goal is an assessment of a planned
-feature or data-processing activity against the GDPR and the EU AI Act that a Data Protection
-Officer can approve and record in the organisation's processing register.
-
-How to work:
-1. Check the register first (lookup_register) so you can say when something is already registered.
-2. Retrieve the law with search_regulation, ONE focused topic per call (about 10 words; several calls
-   run in parallel) - never bundle topics into one long query. Typical topics for a feature:
-   legal basis (GDPR Art. 6), automated decisions and profiling (GDPR Art. 22, Rec. 71), transparency
-   (Art. 13/14), data minimisation and retention (Art. 5), special categories (Art. 9), DPIA (Art. 35),
-   international transfers (Art. 44-49), and for AI: prohibited practices (AI Act Art. 5), high-risk
-   classification (Art. 6, Annex III), provider/deployer obligations (Art. 16, 26, 27), transparency (Art. 50).
-   Use get_article when you already know the provision you need to quote.
-3. Cite ONLY the citation labels the tools returned, verbatim, e.g. "GDPR Art. 22(1)", "GDPR Rec. 71",
-   "AI Act Art. 6(2)", "AI Act Annex III point 5". Never invent article numbers. Every finding needs
-   at least one citation. Cite the most specific label the tools returned for the rule you rely on:
-   "GDPR Art. 5(1)(c)" rather than "GDPR Art. 5", "GDPR Art. 6(1)(f)" or "6(4)" rather than "Art. 6",
-   "AI Act Annex III point 5" rather than "Annex III" - a bare article number does not say which rule
-   applies. The output is checked against the corpus and sent back if a citation is unknown.
-4. Apply the organisation facts from memory: something the organisation already covers is a
-   "Covered" finding that cites the provision and the fact. Lessons from earlier DPO decisions are
-   the organisation's standing positions: apply them as requirements, state the concrete limit or
-   severity they set (e.g. "retention must not exceed two years"), and do not describe them as
-   lessons, memory or DPO notes - the DPO already knows where they come from.
-5. Output: a feature description ALWAYS ends in an Assessment (findings tagged Blocker / Required /
-   Covered, blockers first; verdict; concrete next steps; DPIA flag; high-risk-AI flag) - never in a
-   summary, an acknowledgement or a request for more detail: assess with what you have and put the
-   open questions into next_steps. Address every data source the description names (e.g. browsing
-   behaviour, device data, purchase history), each as its own finding where the law treats it
-   differently - do not fold them into one. A StatusReply is only for a status question, a register
-   or review action, or when the activity is already recorded in the register (say which entry).
-   Severity means: Blocker = the feature as described is unlawful or prohibited and must change before
-   it can be built (a solely automated decision without the Art. 22 safeguards, a prohibited AI practice,
-   special-category data without an Art. 9 ground, a transfer with no lawful basis); Required = an
-   obligation the team must fulfil before launch while the design stands (a contract, a notice, a DPIA or
-   an impact assessment, a legal basis to document, data to minimise) - never raise such paperwork to a
-   Blocker; Covered = already handled, by the design or by an organisation fact. One finding carries one
-   severity: never put a Covered point and a Required point in the same finding - write two.
-6. Never include personal names, e-mail addresses or other personal data of individuals in the output.
-   This is an automated first assessment, not legal advice; the DPO decides.
-
-Register and approval: an assessment becomes an organisational record only after the DPO approves it.
-When asked to request review, call request_dpo_review(assessment_id) with the assessment id shown to the
-user (e.g. A-0012); the DPO's approval writes the register. Never state that something is recorded unless
-a tool result says so.
-"""
-
-ROLE_NOTES = {
-    "product_manager": "The current user is a product manager: they can request assessments, which are sent to the "
-                       "DPO for review automatically, but cannot write to the register. If they ask for that, "
-                       "explain that only the DPO's approval records an assessment.",
-    "dpo": "The current user is the Data Protection Officer.",
-}
+WORKER_PROMPT = prompts.get("worker")            # config/prompts/agents.yaml
+ROLE_NOTES = prompts.get_map("role_notes")       # one line per role, added to the agent's system prompt
 
 
 def repair_tool_pairs(messages: list) -> tuple[list, list[str]]:
@@ -280,7 +214,7 @@ def describe_history(messages: list) -> str:
 
 
 class RoleToolsMiddleware(AgentMiddleware):
-    """Per-role tool binding and dynamic system prompt with long-term memory.
+    """Per-role tool binding, a static system prompt, and long-term memory as tagged data in the request message.
 
     `base_prompt` is the agent's own instructions (the worker's or the reviser's); `agent` names the node in
     trace events so the two agents are told apart in the text flow and the live graph."""
@@ -326,12 +260,9 @@ class RoleToolsMiddleware(AgentMiddleware):
         allowed = auth.allowed_tools(role)
         tools = [t for t in (request.tools or []) if _tool_name(t) in allowed or _tool_name(t) is None]
         mem = self._recall(request, user_id, thread_id)
-        system = (
-            self.base_prompt
-            + "\n" + ROLE_NOTES.get(role, "")
-            + "\n\nLong-term memory:\n" + memory.format_for_prompt(mem)
-        )
+        system = self.base_prompt + "\n" + ROLE_NOTES.get(role, "")      # static per role: nothing from a user or from memory
         messages, repairs = repair_tool_pairs(list(request.messages))
+        messages = self._with_context(messages, memory.format_as_context(mem, unavailable=mem.get("unavailable") and "Long-term memory could not be read for this run."))
         if repairs:
             log.warning("message history repaired before the %s model call (thread %s): %s\nhistory received:\n%s",
                         self.agent, thread_id, "; ".join(repairs), describe_history(list(request.messages)))
@@ -357,6 +288,21 @@ class RoleToolsMiddleware(AgentMiddleware):
                     pass
             raise
         return self._settle_output(response)
+
+    def _with_context(self, messages: list, context: str) -> list:
+        """The history for this one model call, with long-term memory placed in front of the request it belongs to.
+        Memory is data, so it goes into the human message (tagged), not into the system prompt. The worker's request
+        is the user's own text and is wrapped in <user_message>; the reviser's is the brief, which is tagged already.
+        The state is not changed: the stored thread keeps the request exactly as it was sent."""
+        idx = next((i for i in range(len(messages) - 1, -1, -1) if is_request(messages[i])), None)
+        if idx is None:                                   # no request in view (should not happen): memory still goes first
+            return [HumanMessage(content=context)] + messages
+        m = messages[idx]
+        text = m.content if isinstance(m.content, str) else str(m.content)
+        body = text if self.agent == "reviser" else tag("user_message", text)
+        out = list(messages)
+        out[idx] = m.model_copy(update={"content": f"{context}\n\n{body}"})
+        return out
 
     def _settle_output(self, response):
         """Keep the thread consistent when the model's structured output could not be used. A tool call whose JSON
@@ -493,7 +439,7 @@ class ToolGateMiddleware(AgentMiddleware):
                 f"The DPO ({r_id}) approved assessment {assessment_id}"
                 + (" with amendments" if amended else "")
                 + f" and it has been recorded in the processing register as {row['assessment_id']}."
-                + (f" DPO comment: {comment}" if comment else "")
+                + (f" DPO comment: {tag('dpo_comment', comment)}" if comment else "")
                 + " Report this outcome to the user in two sentences."
             )
         if verdict == "request_changes" and comment.strip():
@@ -504,12 +450,12 @@ class ToolGateMiddleware(AgentMiddleware):
             say({"node": "tool_gate", "event": "changes_requested", "tool": "request_dpo_review", "by": r_id,
                  "assessment_id": assessment_id, "comment": comment})
             return reply(f"The DPO ({r_id}) requested changes to the feature before assessment {assessment_id} can be approved. "
-                         f"Requested changes: {comment} Nothing was recorded. Tell the user what must change and that they can "
+                         f"Requested changes: {tag('dpo_comment', comment)} Nothing was recorded. Tell the user what must change and that they can "
                          f"revise the feature description and run a revision; keep it to two or three sentences.", "error")
         # Otherwise: reject with a reason. Anything else - including an empty resume payload - is treated as a
         # rejection, never as an approval.
         repo.resolve_review_task(task["id"], "rejected", r_id, comment, None, memory_items)
         repo.update_assessment(assessment_id, status="rejected")
         say({"node": "tool_gate", "event": "rejected", "tool": "request_dpo_review", "by": r_id, "comment": comment})
-        return reply(f"The DPO ({r_id}) rejected assessment {assessment_id}. Comment: {comment or 'none'}. "
+        return reply(f"The DPO ({r_id}) rejected assessment {assessment_id}. Comment: {tag('dpo_comment', comment or 'none')} "
                      f"Tell the user; do not record anything.", "error")

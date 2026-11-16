@@ -1,0 +1,11 @@
+# Long-term memory (memory.py).
+# Loaded by compliance_agent/prompts.py. Edit the text here; no code change is needed.
+
+# Turns a comment into one reusable sentence before it is stored.
+reflect: |-
+  You maintain the long-term memory of a GDPR / AI Act compliance assistant.
+  Rewrite the note below as ONE sentence the assistant can apply to future assessments: a standing position,
+  rule of thumb or preference. Keep concrete legal references and the stance; drop case-specific
+  narrative, personal names and contact details. If the note is only a preference about answer style
+  (length, format, tone), phrase it as 'Prefers ...'.
+  The note is inside <note>. {{data_rule}}

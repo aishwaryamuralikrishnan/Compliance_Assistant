@@ -39,6 +39,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 STATE_COOKIE = "oidc_state"
 STATE_TTL = 600
 CALLBACK_PATH = "/api/auth/oidc/callback"
+CLOCK_SKEW_SECONDS = 60     # tolerated difference between this host's clock and the identity provider's
 
 
 def settings() -> dict[str, Any] | None:
@@ -81,9 +82,12 @@ def exchange_code(token_endpoint: str, *, code: str, verifier: str, redirect_uri
 
 
 def verify_id_token(id_token: str, *, jwks_uri: str, issuer: str, client_id: str) -> dict[str, Any]:
-    """Signature against the provider's JWKS, then issuer, audience and expiry; Google issues `accounts.google.com` too."""
+    """Signature against the provider's JWKS, then issuer, audience and expiry; Google issues `accounts.google.com` too.
+    A clock skew of up to CLOCK_SKEW_SECONDS is tolerated on the token's timestamps: a host clock a few seconds
+    behind the provider's would otherwise reject every fresh token as "not yet valid (iat)"."""
     key = jwt.PyJWKClient(jwks_uri).get_signing_key_from_jwt(id_token).key
-    return jwt.decode(id_token, key, algorithms=["RS256"], audience=client_id, issuer=[issuer, issuer.replace("https://", "")])
+    return jwt.decode(id_token, key, algorithms=["RS256"], audience=client_id, issuer=[issuer, issuer.replace("https://", "")],
+                      leeway=CLOCK_SKEW_SECONDS)
 
 
 def _pkce() -> tuple[str, str]:

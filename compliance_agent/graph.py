@@ -84,6 +84,11 @@ def new_thread_id() -> str:
     return str(uuid.uuid4())
 
 
+# Hard stop for one graph run. A full worker run (20 model calls, see nodes/worker.py) takes about 280 steps,
+# because every middleware hook is a step of its own; LangGraph's default is 10,007.
+RECURSION_LIMIT = 500
+
+
 def run_config(user: UserContext, thread_id: str, *, extra_tags: list[str] | None = None, run_name: str = "compliance_turn") -> dict[str, Any]:
     """One LangSmith root run per call; its id is fixed here so feedback can be attached to it later."""
     rid = uuid.uuid4()
@@ -93,6 +98,7 @@ def run_config(user: UserContext, thread_id: str, *, extra_tags: list[str] | Non
         "tags": ["compliance-assistant", f"role:{user.role}", f"user:{user.user_id}", *(extra_tags or [])],
         "metadata": {"user_id": user.user_id, "role": user.role, "thread_id": thread_id, "models": models.resolved_model_ids()},
         "run_name": run_name,
+        "recursion_limit": RECURSION_LIMIT,
     }
 
 

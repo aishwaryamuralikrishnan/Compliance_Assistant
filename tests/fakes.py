@@ -18,6 +18,7 @@ class ScriptedChatModel(BaseChatModel):
     script: list[AIMessage]
     calls: int = 0
     last_prompt: str = ""                      # the text of the last request, for tests that check what a model was shown
+    last_messages: list = []                   # the same request as messages, to tell the system prompt from the rest
 
     @property
     def _llm_type(self) -> str:
@@ -30,6 +31,7 @@ class ScriptedChatModel(BaseChatModel):
         return self
 
     def _generate(self, messages: list[BaseMessage], stop=None, run_manager=None, **kwargs) -> ChatResult:
+        self.last_messages = list(messages)
         self.last_prompt = "\n".join(m.content if isinstance(m.content, str) else str(m.content) for m in messages)
         if self.calls >= len(self.script):
             msg = AIMessage(content="(script exhausted)")

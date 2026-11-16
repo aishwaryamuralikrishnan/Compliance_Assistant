@@ -15,8 +15,8 @@ import pytest
 
 @pytest.fixture()
 def fake_models(monkeypatch, tmp_path, scratch_db):
-    os.environ.setdefault("SEED_PM_PASSWORD", "pm")
-    os.environ.setdefault("SEED_DPO_PASSWORD", "dpo")
+    monkeypatch.setenv("SEED_PM_PASSWORD", "pm-seed-test-0001")      # the seed refuses short or example passwords
+    monkeypatch.setenv("SEED_DPO_PASSWORD", "dpo-seed-test-0001")
     from compliance_agent import db
     import compliance_agent.models as models
     from ingest import eurlex
@@ -71,3 +71,19 @@ def test_seed_pipeline(fake_models):
             "AND tsv @@ plainto_tsquery('english', 'material scope') LIMIT 1"
         ).fetchone()
         assert hit["chunk_key"] == "GDPR:art2"
+
+
+def test_seed_refuses_weak_passwords(monkeypatch):
+    """No database needed: `seed users` stops before it connects when a password is missing, short or an example."""
+    from ingest import seed
+
+    assert seed.seed_password_problem("") == "is not set"
+    assert "example" in seed.seed_password_problem("pm-password")
+    assert "shorter" in seed.seed_password_problem("short-pw")
+    assert seed.seed_password_problem("a-long-enough-password") is None
+
+    monkeypatch.setenv("SEED_PM_PASSWORD", "a-long-enough-password")
+    monkeypatch.setenv("SEED_DPO_PASSWORD", "dpo-password")
+    with pytest.raises(SystemExit) as exc:
+        seed.main(["users"])
+    assert "SEED_DPO_PASSWORD" in str(exc.value)

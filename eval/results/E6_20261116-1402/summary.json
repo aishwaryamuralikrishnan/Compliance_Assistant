@@ -1,0 +1,92 @@
+{
+ "header": {
+  "set": "E6",
+  "timestamp": "2026-11-16T13:02:45+00:00",
+  "commit": "7af0da6",
+  "models": {
+   "worker_full": "openai/gpt-6-luna",
+   "worker_quick": "openai/gpt-6-luna",
+   "cheap": "google/gemini-3.1-flash-lite",
+   "judge": "anthropic/claude-haiku-5.5",
+   "embeddings": "openai/text-embedding-3-small",
+   "reranker": "cohere/rerank-4-fast",
+   "router": "typesafe/jev-router",
+   "grader": "openai/gpt-6-luna"
+  },
+  "database": "localhost/compliance_eval",
+  "host": "LAPTOP-HQB74870"
+ },
+ "cases": 20,
+ "assessed": {
+  "count": 20,
+  "of": 20,
+  "not_assessed": []
+ },
+ "verdict": {
+  "right": 16,
+  "of": 20,
+  "wrong": [
+   "A-001 (Proceed → Proceed with conditions)",
+   "A-008 (Proceed → Proceed with conditions)",
+   "A-017 (Proceed with conditions → Do not build as described)",
+   "A-019 (Proceed → Proceed with conditions)"
+  ]
+ },
+ "dangerous_misses": [],
+ "risk_level": {
+  "right": 13,
+  "of": 20
+ },
+ "flags": {
+  "high_risk_ai": {
+   "missed": 0,
+   "positives": 7,
+   "false": 0,
+   "negatives": 13
+  },
+  "dpia_required": {
+   "missed": 1,
+   "positives": 14,
+   "false": 0,
+   "negatives": 6
+  }
+ },
+ "must_cite": {
+  "found": 39,
+  "of": 39,
+  "misses": []
+ },
+ "key_findings": {
+  "matched": 58,
+  "partial": 8,
+  "severity_miscalibrated": 6,
+  "of": 81,
+  "judged_cases": 20,
+  "judge_errors": []
+ },
+ "wrong_extras": [
+  "A-001: Finding 1 [Required]: demands a lawful basis under GDPR Art. 6(1) as a pre-launch obligation; the reviewer lists a Covered lawful-basis point as merely extra, so this is not wrong per se, but it treats the lawful basis as an unmet Required obligation without acknowledging the existing notice, which is contextual blindness to the organisation facts.",
+  "A-003: Finding 8: DPO review is stated as a Required step before build and tied to GDPR Art. 22, which does not require DPO review; this is a statutory fabrication.",
+  "A-006: Finding 7: GDPR Art. 22 is cited as the basis for submitting the assessment to the DPO before build, but Art. 22 imposes no such duty; the requirement is an internal review process, so this is a statutory misattribution.",
+  "A-010: Finding 1: Blocker under GDPR Art. 22 for an automatic hold ignores the stated analyst review within two hours of every hold, so it is a false escalation and contextual blindness.",
+  "A-015: Finding 9: states that DPO review before build is required and cites AI Act Annex III point 4 for it, an obligation the cited provision does not contain (statutory fabrication)."
+ ],
+ "must_not_violations": [],
+ "faithfulness": {
+  "mean": 0.845,
+  "over": 20
+ },
+ "pairs_right": 6,
+ "pairs_total": 8,
+ "pairs_failed": [
+  "A-007+A-019",
+  "A-008+A-009"
+ ],
+ "run": {
+  "rewrites": 33,
+  "regenerations": 0,
+  "seconds_mean": 77.9
+ },
+ "cost": 0.3173,
+ "judge_cost": 0.191
+}

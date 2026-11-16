@@ -295,14 +295,32 @@ def cmd_reindex(args: argparse.Namespace) -> None:
 # users
 # --------------------------------------------------------------------------------------
 
+MIN_SEED_PASSWORD_LENGTH = 12
+EXAMPLE_PASSWORDS = {"pm-password", "dpo-password"}          # once shipped in .env.example, so publicly known
+
+
+def seed_password_problem(password: str | None) -> str | None:
+    """Why a seed password is not acceptable, or None when it is fine."""
+    if not password:
+        return "is not set"
+    if password in EXAMPLE_PASSWORDS:
+        return "is one of the documented example passwords"
+    if len(password) < MIN_SEED_PASSWORD_LENGTH:
+        return f"is shorter than {MIN_SEED_PASSWORD_LENGTH} characters"
+    return None
+
+
 def cmd_users(args: argparse.Namespace) -> None:
     import bcrypt
 
+    for u in SEED_USERS:                                   # check both before creating either account
+        problem = seed_password_problem(config.env(u["password_env"]))
+        if problem:
+            sys.exit(f"{u['password_env']} {problem}. Choose your own password of at least "
+                     f"{MIN_SEED_PASSWORD_LENGTH} characters (see .env.example).")
     with db.connect_plain() as conn:
         for u in SEED_USERS:
             password = config.env(u["password_env"]) or ""
-            if not password:
-                sys.exit(f"{u['password_env']} is not set (see .env.example).")
             pw_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             conn.execute(
                 """INSERT INTO users (username, display_name, role, password_hash)

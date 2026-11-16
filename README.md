@@ -89,13 +89,13 @@ The full evaluation, with the test data, the results per set and the failure mod
 
 **Test data**: seven sets with 100 synthetic inputs written for this project (feature descriptions, legal questions, injection attempts), each with the expected route, provisions, verdict and findings. I used synthetic data rather than a golden set of real cases because a golden set needs a legal expert to label it, and I am not one.
 
-**Scoring**: exact rules wherever the output is structured, an AI judge with a written rubric from a model family the app never uses, and a blind human check of five cases. One run per case, on 27 October 2026 (retrieval re-run on 3 November).
+**Scoring**: exact rules wherever the output is structured, an AI judge with a written rubric from a model family the app never uses, and a blind human check of five cases (made on the run of 27 October). One run per case, on 16 November 2026.
 
 **Result highlights**
 
 ![Result highlights](docs/images/eval_highlights.png)
 
-**Where it falls short**: the right finding sometimes sits one severity step too high or too low, and the verdict is sometimes milder than the findings beneath it.
+**Where it falls short**: the right finding sometimes sits one severity step too high or too low, and the verdict is then sometimes one step off as well.
 
 ## 3. Compliance
 

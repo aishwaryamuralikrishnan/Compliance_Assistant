@@ -3,14 +3,14 @@
 Model: the worker_full slot. Tools: every business tool; RoleToolsMiddleware narrows them
 per role at each model call and ToolGateMiddleware re-checks each call. Middleware stack:
 PII redaction (input), summarisation of long threads (cheap slot), a per-run tool-call
-budget, then the role binding and the gate. Structured output: Assessment | StatusReply.
+budget, a hard cap on model calls per run, then the role binding and the gate. Structured output: Assessment | StatusReply.
 """
 from __future__ import annotations
 
 from functools import lru_cache
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware
+from langchain.agents.middleware import ModelCallLimitMiddleware, PIIMiddleware
 from langchain.agents.structured_output import ToolStrategy
 
 from .. import models
@@ -20,6 +20,7 @@ from .middleware import WORKER_PROMPT, RoleToolsMiddleware, ToolBudgetMiddleware
 
 PHONE_PATTERN = r"(?<![\w/])\+?\d[\d\s().-]{8,}\d(?![\w/])"
 TOOL_CALL_RUN_LIMIT = 14          # loop budget per turn; the agent is asked to finish when reached
+MODEL_CALL_RUN_LIMIT = 20         # hard stop per run: 14 tool rounds plus the structured output and a few retries
 
 
 def _middleware(agent: str, base_prompt: str) -> list:
@@ -33,6 +34,8 @@ def _middleware(agent: str, base_prompt: str) -> list:
         # under this (the heavy model's context is 1M tokens), so the original request is never summarised away.
         TracedSummarizationMiddleware(model=cheap, trigger=("tokens", 60000), keep=("messages", 24), agent=agent),
         ToolBudgetMiddleware(run_limit=TOOL_CALL_RUN_LIMIT, exit_behavior="continue"),   # real tools only, not the structured output
+        # The tool budget only blocks tools; the model could still keep answering. This ends the run for certain.
+        ModelCallLimitMiddleware(run_limit=MODEL_CALL_RUN_LIMIT, exit_behavior="end"),
         RoleToolsMiddleware(base_prompt=base_prompt, agent=agent),
         ToolGateMiddleware(),
     ]

@@ -56,6 +56,12 @@ def memory_write(state: GraphState, runtime: Runtime) -> dict[str, Any]:
         candidates += memory.propose_from_feedback(feedback.get("comment"), keep_example=bool(feedback.get("example")), assessment=a,
                                                    answer=state.get("answer"), user_id=user_id, dpo_involved=dpo_involved)
 
+    refused: list[dict[str, Any]] = []
+    if feedback:                              # a note that failed the screen is never a candidate; say so in the trace
+        note, why = memory.screen_note(feedback.get("comment"))
+        if why:
+            refused.append({"ns": memory.ns_label("pref", user_id), "type": "pref", "text": note, "source": "feedback_comment", "why": why})
+
     if not triggers:
         say({"node": "memory_write", "event": "skipped", "triggers": [], "role": role})
         return {"memory_items": [], "feedback": None}
@@ -70,6 +76,7 @@ def memory_write(state: GraphState, runtime: Runtime) -> dict[str, Any]:
                                               run_id=run_id, assessment_id=assessment_id)
     elif items:
         dropped = [{"type": x.get("type"), "text": x.get("text"), "why": "no store attached"} for x in items]
+    dropped = refused + dropped
     if decision:
         repo.mark_memory_written(decision["id"])
     tracing.tag_run(*[f"memory:{w['type']}" for w in written], *[f"trigger:{t}" for t in triggers],

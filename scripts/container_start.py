@@ -59,6 +59,7 @@ def seed_if_empty() -> None:
         print(f"corpus present: {_count('legal_chunks')} chunks", flush=True)
     if _count("users") == 0:
         if config.env("SEED_PM_PASSWORD") and config.env("SEED_DPO_PASSWORD"):
+            # `seed users` refuses a weak password (too short, or a documented example) and exits: the API does not start.
             print("first start: creating the two demo accounts and the seeded memory", flush=True)
             seed.main(["users"])
             seed.main(["memory"])

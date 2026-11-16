@@ -30,7 +30,7 @@ Setup, running, models, tests and housekeeping. How the agent works is in [AGENT
 | `compliance_agent/export.py`, `retention.py` | The PDF export of the register; checkpoint retention |
 | `compliance_agent/viz.py`, `trace.py` | The live-graph layout and the trace, served as JSON by the API |
 | `ingest/` | EUR-Lex download, the legal-structure chunker, the seed script |
-| `config/` | `models.yaml` (slots and prices), `roles.yaml` (permissions, memory policy), `corpus.yaml` |
+| `config/` | `models.yaml` (slots and prices), `roles.yaml` (permissions, memory policy), `corpus.yaml`, `prompts/` (every prompt, as YAML) |
 | `scripts/` | `check_env`, `admin`, `list_models`, the probes (`probe_models`, `probe_slot`, `probe_grader`, `probe_provider`), `draw_graph`, `eval_pdf`, `container_start` |
 | `eval/` | The evaluation harness: `data/` (the test sets), `harness/`, `prompts/`, `report/` (the PDF), `results/` |
 | `tests/` | pytest. Graph flows run on a scratch database with a canned corpus |
@@ -91,6 +91,7 @@ docker compose logs -f api        # "first start: ...", then "serving the API on
 Then: http://localhost:3000 (the app), http://localhost:8000/docs (the API), http://localhost:3000/evaluation (the report).
 
 - On first start the `api` container waits for the database, creates the schema and seeds: the corpus (needs `OPENROUTER_API_KEY`), the two accounts (`SEED_PM_PASSWORD`, `SEED_DPO_PASSWORD`) and the seeded memory.
+- The seed passwords must be your own and at least 12 characters. A shorter one, or an old example password, stops the seeding (and the first container start) with an error.
 - A restart never re-embeds or overwrites memory. `SEED_ON_START=0` skips seeding.
 - `docker compose down -v` wipes the database; the next start seeds again.
 
@@ -154,7 +155,7 @@ The method, the sets and the results are in the public report (README section 2)
 ## Tests
 
 ```powershell
-pytest tests -q                                                               # 78 tests, about 2 min
+pytest tests -q                                                               # 89 tests, about 2 min
 pytest tests -q --cov=compliance_agent --cov=api --cov-report=term-missing    # with line coverage
 ```
 

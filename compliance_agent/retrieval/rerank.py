@@ -14,7 +14,8 @@ import requests
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
-from .. import config, models
+from .. import config, models, prompts
+from ..prompting import passages, tag
 from .search import RetrievedChunk
 
 
@@ -63,10 +64,10 @@ def _rerank_api(query: str, chunks: list[RetrievedChunk], top_n: int) -> list[Re
 
 
 def _rerank_llm(query: str, chunks: list[RetrievedChunk], top_n: int) -> list[RetrievedChunk]:
-    numbered = "\n\n".join(f"[{i}] {_doc_text(c, 900)}" for i, c in enumerate(chunks))
+    numbered = passages(((None, _doc_text(c, 900)) for c in chunks), start=0)
     msgs = [
-        ("system", "You rank legal passages by how directly they answer the question. Return the indices of the most relevant passages, best first."),
-        ("human", f"Question: {query}\n\nPassages:\n{numbered}\n\nReturn the {top_n} most relevant passage indices."),
+        ("system", prompts.get("reranker", top_n=top_n)),          # config/prompts/retrieval.yaml
+        ("human", f"{tag('question', query)}\n\n{numbered}"),
     ]
     result = models.invoke_structured("cheap", _Listwise, msgs)
     out: list[RetrievedChunk] = []

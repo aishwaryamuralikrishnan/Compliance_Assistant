@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 from langsmith import traceable
 from pydantic import BaseModel, Field
 
-from .. import models
+from .. import models, prompts
+from ..prompting import passages, tag
 from .search import RetrievedChunk
 
 log = logging.getLogger(__name__)
@@ -46,23 +47,15 @@ class _Grade(BaseModel):
     missing: str = Field(default="", description="If not sufficient: the one provision needed for the central question that is missing, in one sentence")
 
 
-_SYSTEM = (
-    "You grade retrieved passages from the GDPR and the EU AI Act for a compliance assistant. "
-    "Identify the central question of the search query (if the query bundles several topics, the first or "
-    "dominant one). The passages are SUFFICIENT when they contain the specific provisions that answer that central "
-    "question with article citations (the obligation, condition, exception or risk classification at stake), even "
-    "if side topics in the query would need a separate search. They are INSUFFICIENT when the passages are only "
-    "loosely related, cover a different situation, or miss the key provision for the central question. "
-    "In `missing`, name only the provision needed for the central question, not side topics."
-)
+_SYSTEM = prompts.get("grader")                  # config/prompts/retrieval.yaml
 
 
 def _grade_llm(query: str, chunks: list[RetrievedChunk]) -> GradeResult:
     model_id = models.resolved_model_ids().get("grader", "")
     if not chunks:
         return GradeResult(False, 1.0, [], "no passages retrieved", model_id)
-    numbered = "\n\n".join(f"[{i}] {c.heading}\n{c.text[:1500]}" for i, c in enumerate(chunks, start=1))
-    msgs = [("system", _SYSTEM), ("human", f"Question: {query}\n\nPassages:\n{numbered}")]
+    numbered = passages((c.heading, c.text[:1500]) for c in chunks)
+    msgs = [("system", _SYSTEM), ("human", f"{tag('question', query)}\n\n{numbered}")]
     r = models.invoke_structured("grader", _Grade, msgs)
     threshold = float(models.slot_spec("grader").get("accept_threshold", 0.6))
     ids = [chunks[n - 1].id for n in r.relevant_passage_numbers if 1 <= n <= len(chunks)]

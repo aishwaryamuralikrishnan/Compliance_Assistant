@@ -17,6 +17,8 @@ What gets written (step 6):
     and shown to the person before the write - the DPO's checkboxes, or the note itself;
   - a free-text comment is turned into one reusable sentence by the cheap model (`reflect`);
     if that call fails the comment is stored verbatim;
+  - a user's feedback note is screened first (`screen_note`: injection patterns, PII redaction) and is stored
+    without the user id; a note that reads like an instruction is refused, never stored;
   - the rule that decides what is written is the role of the person whose action triggered the
     run (config/roles.yaml `memory_writes`), never the model and never the requester's role.
 Every item carries provenance: type, source, author, thread_id, run_id, assessment_id, created_at.
@@ -25,7 +27,7 @@ Conversation turns and feature descriptions are never stored.
 from __future__ import annotations
 
 import logging
-
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -33,7 +35,8 @@ from typing import Any
 from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field
 
-from . import config
+from . import config, prompts
+from .prompting import tag
 
 TYPE_TO_POLICY = {"org_fact": "org_facts", "lesson": "org_lessons", "pref": "user_prefs"}
 
@@ -79,22 +82,21 @@ def recall(store: BaseStore, user_id: str, query: str, *, facts_k: int = 6, less
     }
 
 
-def format_for_prompt(mem: dict[str, list[dict[str, Any]]]) -> str:
-    """Compact block placed in the worker prompt ahead of the retrieved legal text."""
-    lines: list[str] = []
+def format_as_context(mem: dict[str, list[dict[str, Any]]], *, unavailable: str | None = None) -> str:
+    """Long-term memory as tagged data for a context message, never for a system prompt: organisation facts and
+    the DPO's standing positions in <org_memory>, this user's preferences in <user_preferences>. The system prompts
+    say what each tag may and may not do (prompting.MEMORY_RULE)."""
+    org: list[str] = []
     if mem.get("org_facts"):
-        lines.append("Organisation facts (long-term memory; source in brackets):")
-        for f in mem["org_facts"]:
-            lines.append(f"- {f.get('text')} [{f.get('source', '?')}]")
+        org.append("Organisation facts (source in brackets):")
+        org += [f"- {f.get('text')} [{f.get('source', '?')}]" for f in mem["org_facts"]]
     if mem.get("lessons"):
-        lines.append("Standing positions from earlier DPO decisions (apply as requirements):")
-        for l in mem["lessons"]:
-            lines.append(f"- {l.get('text')}")
-    if mem.get("prefs"):
-        lines.append("This user's preferences:")
-        for p in mem["prefs"]:
-            lines.append(f"- {p.get('text')}")
-    return "\n".join(lines) if lines else "No long-term memory items yet."
+        org.append("Standing positions from earlier DPO decisions:")
+        org += [f"- {l.get('text')}" for l in mem["lessons"]]
+    if not org:
+        org.append(unavailable or "No organisation memory items yet.")
+    prefs = [f"- {p.get('text')}" for p in mem.get("prefs") or []] or ["No preferences stored."]
+    return tag("org_memory", "\n".join(org)) + "\n" + tag("user_preferences", "\n".join(prefs))
 
 
 # --------------------------------------------------------------------------------------
@@ -160,14 +162,42 @@ def propose_from_decision(original: dict[str, Any], amended: dict[str, Any] | No
     return items[:5]
 
 
+# A note is a preference about style. On top of the input screen's patterns, a note is refused when it tells the
+# assistant to set rules aside or steers the verdict: stricter than for a feature description, where such words
+# can be part of what is described.
+_NOTE_HINTS = re.compile(
+    r"\b(ignore|disregard|skip|drop|bypass|override|forget)\b.{0,40}\b(rules?|instructions?|citations?|guardrails?|polic(?:y|ies)|checks?|review)\b"
+    r"|\b(always|never|do not|don't)\b.{0,40}\b(approve|reject|proceed|verdict|blockers?|cite|citations?)\b",
+    re.I,
+)
+
+NOTE_REFUSED = "the note reads like an instruction to the assistant, not a preference; it was not stored"
+
+
+def screen_note(comment: str | None) -> tuple[str, str | None]:
+    """The screen a feedback note passes before it can become a stored preference: (text with personal identifiers
+    redacted, reason it is refused or None). The same deterministic checks as for a revised description
+    (validate_input: the injection patterns and the PII redaction), because a stored note is read by every later run."""
+    from .nodes.validate_input import _INJECTION_HINTS, redact_pii      # here, not at the top: nodes import this module
+
+    text = " ".join(str(comment or "").split())
+    if not text:
+        return "", None
+    text, _ = redact_pii(text)
+    if _INJECTION_HINTS.search(text) or _NOTE_HINTS.search(text):
+        return text, NOTE_REFUSED
+    return text, None
+
+
 def propose_from_feedback(comment: str | None, *, keep_example: bool, assessment: dict[str, Any] | None, answer: str | None,
                           user_id: str, dpo_involved: bool) -> list[dict[str, Any]]:
     """Candidates for feedback on a completed thread: a note becomes the author's own preference; "keep as a
     good example" on a DPO-approved assessment becomes a lesson (the role gate limits that to the DPO)."""
     items: list[dict[str, Any]] = []
     title = (assessment or {}).get("title") or _short(answer or "", 60)
-    if comment and comment.strip():
-        items.append(_item("pref", f"{user_id} on '{title}': {comment.strip()}", source="feedback_comment", reflect=True))
+    note, refused = screen_note(comment)
+    if note and not refused:                  # no user id in the text: the namespace already says whose preference it is
+        items.append(_item("pref", f"On '{title}': {note}", source="feedback_comment", reflect=True))
     if keep_example and dpo_involved and assessment:
         heads = "; ".join(f"{f.get('severity')}: {_clean(f.get('text', ''))}" for f in assessment.get("findings", [])[:3])
         items.append(_item("lesson", f"Good example (DPO-approved, rated up by {user_id}): '{title}' - {assessment.get('verdict')}. {heads}",
@@ -179,11 +209,7 @@ class _Reflection(BaseModel):
     text: str = Field(description="One sentence, reusable in future assessments, no personal names or contact details.")
 
 
-_REFLECT_PROMPT = """You maintain the long-term memory of a GDPR / AI Act compliance assistant.
-Rewrite the note below as ONE sentence the assistant can apply to future assessments: a standing position,
-rule of thumb or preference. Keep concrete legal references and the stance; drop case-specific
-narrative, personal names and contact details. If the note is only a preference about answer style
-(length, format, tone), phrase it as 'Prefers ...'."""
+_REFLECT_PROMPT = prompts.get("reflect")         # config/prompts/memory.yaml
 
 
 def reflect(items: list[dict[str, Any]], *, model_slot: str = "cheap") -> list[dict[str, Any]]:
@@ -195,7 +221,7 @@ def reflect(items: list[dict[str, Any]], *, model_slot: str = "cheap") -> list[d
         it = dict(it)
         if it.get("reflect"):
             try:
-                r = models.invoke_structured(model_slot, _Reflection, [("system", _REFLECT_PROMPT), ("human", it["text"])])
+                r = models.invoke_structured(model_slot, _Reflection, [("system", _REFLECT_PROMPT), ("human", tag("note", it["text"]))])
                 if r.text.strip():
                     it["original"] = it["text"]
                     it["detail"] = (it.get("detail", "") + f" · original: {it['text']}").strip(" ·")

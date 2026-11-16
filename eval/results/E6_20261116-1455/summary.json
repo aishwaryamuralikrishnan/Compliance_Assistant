@@ -1,0 +1,89 @@
+{
+ "header": {
+  "set": "E6",
+  "timestamp": "2026-11-16T13:55:38+00:00",
+  "commit": "7af0da6",
+  "models": {
+   "worker_full": "openai/gpt-6-luna",
+   "worker_quick": "openai/gpt-6-luna",
+   "cheap": "google/gemini-3.1-flash-lite",
+   "judge": "anthropic/claude-haiku-5.5",
+   "embeddings": "openai/text-embedding-3-small",
+   "reranker": "cohere/rerank-4-fast",
+   "router": "typesafe/jev-router",
+   "grader": "openai/gpt-6-luna"
+  },
+  "database": "localhost/compliance_eval",
+  "host": "LAPTOP-HQB74870"
+ },
+ "cases": 20,
+ "assessed": {
+  "count": 20,
+  "of": 20,
+  "not_assessed": []
+ },
+ "verdict": {
+  "right": 15,
+  "of": 20,
+  "wrong": [
+   "A-001 (Proceed → Proceed with conditions)",
+   "A-008 (Proceed → Proceed with conditions)",
+   "A-017 (Proceed with conditions → Do not build as described)",
+   "A-019 (Proceed → Proceed with conditions)",
+   "A-020 (Do not build as described → Proceed with conditions)"
+  ]
+ },
+ "dangerous_misses": [],
+ "risk_level": {
+  "right": 13,
+  "of": 20
+ },
+ "flags": {
+  "high_risk_ai": {
+   "missed": 0,
+   "positives": 7,
+   "false": 1,
+   "negatives": 13
+  },
+  "dpia_required": {
+   "missed": 2,
+   "positives": 14,
+   "false": 1,
+   "negatives": 6
+  }
+ },
+ "must_cite": {
+  "found": 39,
+  "of": 39,
+  "misses": []
+ },
+ "key_findings": {
+  "matched": 55,
+  "partial": 9,
+  "severity_miscalibrated": 10,
+  "of": 81,
+  "judged_cases": 20,
+  "judge_errors": []
+ },
+ "wrong_extras": [
+  "A-010: Finding 3: Required obligation to assess whether the hold is a significant solely automated decision under Art. 22, which contextual blindness to the described analyst review of every hold within two hours makes wrong."
+ ],
+ "must_not_violations": [],
+ "faithfulness": {
+  "mean": 0.834,
+  "over": 20
+ },
+ "pairs_right": 6,
+ "pairs_total": 8,
+ "pairs_failed": [
+  "A-007+A-019",
+  "A-008+A-009"
+ ],
+ "run": {
+  "rewrites": 35,
+  "regenerations": 0,
+  "seconds_mean": 79.4
+ },
+ "cost": 0.3175,
+ "judge_cost": 0.1822
+}

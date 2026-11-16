@@ -328,3 +328,14 @@ def test_run_stream_request_changes_then_the_requester_revises(api_users, graph_
         login(c, "m.weber", DPO_PW)
         rv = c.get(f"/api/reviews/{next(t for t in c.get('/api/reviews').json()['pending'] if t['assessment_id'] == v2['assessment_id'])['id']}").json()
         assert rv["previous"]["assessment_id"] == v1 and rv["requested_changes"] == "Drop the browsing data"
+
+
+def test_login_is_rate_limited(api_users):
+    """Five attempts per minute and client; the sixth is refused with 429, even with the right password."""
+    with make_client(object()) as c:                               # the graph is not used by the login
+        for _ in range(5):
+            assert c.post("/api/auth/login", json={"username": "lena.k", "password": "wrong"}).status_code == 401
+        r = c.post("/api/auth/login", json={"username": "lena.k", "password": PM_PW})
+        assert r.status_code == 429 and "Too many login attempts" in r.json()["detail"]
+    with make_client(object()) as c:                               # a new app starts with empty counters
+        assert login(c, "lena.k", PM_PW)["user_id"] == "lena.k"

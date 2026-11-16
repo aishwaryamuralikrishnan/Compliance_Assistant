@@ -1,21 +1,24 @@
 """POST /api/auth/login · POST /api/auth/logout · GET /api/auth/me"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from compliance_agent import auth as accounts
 from compliance_agent.state import UserContext
 
 from . import sessions
 from .deps import current_user
+from .ratelimit import LOGIN_LIMIT, limiter
 from .schemas import LoginRequest, UserOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=UserOut)
-def login(body: LoginRequest, response: Response) -> UserOut:
-    """bcrypt check against the users table (`auth.verify_login`); sets the `session` cookie."""
+@router.post("/login", response_model=UserOut, responses={429: {"description": "Too many login attempts"}})
+@limiter.limit(LOGIN_LIMIT)
+def login(request: Request, body: LoginRequest, response: Response) -> UserOut:
+    """bcrypt check against the users table (`auth.verify_login`); sets the `session` cookie. At most five attempts
+    per minute and client IP (`api/ratelimit.py`; slowapi needs the `request` argument)."""
     user = accounts.verify_login(body.username, body.password)
     if user is None:
         raise HTTPException(401, "Unknown user or wrong password.")
