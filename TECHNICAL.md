@@ -125,6 +125,19 @@ Setting of 3 November 2026. Prices per 1M tokens: GPT-6 Luna $0.10 in / $0.50 ou
 
 **Why the grader is the heavy model.** The grader must name the provision the retrieved passages lack, so that the rewrite can go to it. `python scripts/probe_grader.py` (ten queries) showed that the cheapest models cannot do that reliably; GPT-6 Luna named the article every time. The grader never sees an assessment, only passages from the database against a ten-word query, so using the worker's model is not a conflict. The slot can be pointed at any other model with one line; the probe is the way to compare candidates.
 
+## Prompts
+
+No prompt is written in the Python code. Each one is text in `config/prompts/`, loaded by `compliance_agent/prompts.py`. Changing a prompt is an edit in one of these files.
+
+| File | Prompts |
+|---|---|
+| `agents.yaml` | Worker, reviser, the note per role, the thread summary |
+| `screening.yaml` | Input screen, router |
+| `retrieval.yaml` | Grader, reranker, query rewriter |
+| `answers.yaml` | Quick answer |
+| `memory.yaml` | The rewrite of a comment into one stored sentence |
+| `shared.yaml` | The two trust-boundary rules, included by the others with `{{data_rule}}` and `{{memory_rule}}` |
+
 ## Run the evaluation
 
 The harness never runs against the demo database. Every evaluation case runs the real app code: it stores a draft, creates a review task in the DPO's queue and leaves the thread paused. Run against the demo database, a set of 20 cases would fill the queue and the memory with test data, and the learned lessons would change the next run's results. The harness therefore needs its own copy, made once from the seeded one (the corpus and its vectors are copied, nothing is re-embedded):
