@@ -4,22 +4,27 @@
 
 LangGraph orchestrator • FastAPI backend • Multi-agent workflow • Agentic RAG • Human-in-the-loop • Guardrails • Long-term memory and learning from feedback • OIDC authentication and role-based privileges • Evaluation with an LLM judge
 
-**Links**
+**At a glance**
 
-| Where | Link |
+| | |
 |---|---|
-| Project website | [complianceassessmentagent-site.vercel.app](https://complianceassessmentagent-site.vercel.app) |
-| Live app<br>sign in with Google to use the app as a product manager | [compliance-web-qo1l.onrender.com/login](https://compliance-web-qo1l.onrender.com/login)<br>free tier: may take a minute to wake up |
-| Evaluation report (no login) | [compliance-web-qo1l.onrender.com/evaluation](https://compliance-web-qo1l.onrender.com/evaluation) |
-| Turing College showcase | [showcase.turingcollege.com/project/6dc8696f…](https://showcase.turingcollege.com/project/6dc8696f-3399-4ddd-9ae9-f93a8088cac6) |
+| **Links** | [Project Website](https://complianceassessmentagent-site.vercel.app) · [Live app](https://compliance-web-qo1l.onrender.com/login) · [Evaluation Report](https://compliance-web-qo1l.onrender.com/evaluation) |
+| **Results** | Routing **44 / 45** · injection screen **7 / 7** · retrieval recall **19 / 20** · high-risk AI flag **19 / 20** · dangerous misses **0** · faithfulness **0.83** — 100 synthetic inputs ([§2](#2-evaluation-and-result-highlights)) |
+| **Stack** | LangGraph · FastAPI · React (Next.js) · Postgres with pgvector · Docker · OpenRouter |
+| **Models** | GPT-6 Luna · Gemini 3.1 Flash Lite · TypeSafe Jev Router · Claude Haiku 5.5 as the evaluation judge |
+| **Tests** | 89 automated tests (`pytest tests -q`); no test calls a model |
+
+*Live app: sign in with Google to use it as a product manager. It runs on a free tier and may take a minute to wake up.*
+
+![Walkthrough: a product manager describes a buy-now-pay-later feature; the agent searches the law and returns a Do not build as described verdict with cited findings; the run pauses; the DPO reviews it in the queue, approves, and the assessment appears in the processing register](docs/images/compliance_demo.gif)
 
 The app is containerised with Docker: `docker compose up --build` starts the database, the API and the front end, then open http://localhost:3000 (details in [TECHNICAL.md](TECHNICAL.md)).
 
 **Corpus**: GDPR (99 articles, 173 recitals) and the EU AI Act (113 articles, 180 recitals, 14 annexes) from EUR-Lex, chunked by article / paragraph / recital / annex point into ~1,270 rows in Postgres (pgvector + full text). Articles and annexes come from the consolidated texts, recitals from the original Official Journal texts.
 
-Docs for deep-dive: [AGENTS.md](AGENTS.md) (how the agent works: the graph, the nodes, retrieval, agentic RAG, middleware) · [TOOLS.md](TOOLS.md) (tool inventory, permissions)
+Further reading: [AGENTS.md](AGENTS.md) (how the agent works: the graph, the nodes, retrieval, agentic RAG, middleware) · [TOOLS.md](TOOLS.md) (tool inventory, permissions)
 
-Refer [TECHNICAL.md](TECHNICAL.md) for setup, tests, housekeeping
+See [TECHNICAL.md](TECHNICAL.md) for setup, tests and housekeeping.
 
 ## 1. What it does and who it is for
 
@@ -89,13 +94,15 @@ The full evaluation, with the test data, the results per set and the failure mod
 
 **Test data**: seven sets with 100 synthetic inputs written for this project (feature descriptions, legal questions, injection attempts), each with the expected route, provisions, verdict and findings. I used synthetic data rather than a golden set of real cases because a golden set needs a legal expert to label it, and I am not one.
 
-**Scoring**: exact rules wherever the output is structured, an AI judge with a written rubric from a model family the app never uses, and a blind human check of five cases (made on the run of 27 October). One run per case, on 16 November 2026.
+**Scoring**: exact rules wherever the output is structured, an AI judge with a written rubric from a model family the app never uses, and a blind human check of the judge on five cases. One run per case, on 16 November 2026. The human check was made on the earlier run of 27 October and was not repeated on this one.
 
 **Result highlights**
 
-![Result highlights](docs/images/eval_highlights.png)
+![Result highlights: high-risk AI flag right in 19 of 20 full assessments; 0 dangerous misses; +19 % retrieval recall from the agentic loop; faithfulness 0.83](docs/images/eval_highlights.png)
 
-**Where it falls short**: the right finding sometimes sits one severity step too high or too low, and the verdict is then sometimes one step off as well.
+The same figures in text: the high-risk AI flag was right in 19 of 20 full assessments; no case that expected *Do not build as described* got *Proceed*; the agentic loop found 19 of 20 must-retrieve provisions against 16 of 20 for a single search (0.95 against 0.80, a relative gain of 19 %); and the findings' faithfulness to the retrieved law was 0.83.
+
+**Where it falls short**: the right finding sometimes sits one severity step too high or too low, and the verdict is then sometimes one step off as well. Verdict accuracy was 15 of 20 against a target of 16 (0.80): all five misses were one step from the expected verdict, and none was a dangerous miss.
 
 ## 3. Compliance
 
@@ -141,8 +148,8 @@ The app is deployed on Render. The Postgres database is hosted on Neon (Frankfur
 
 | Decision | Why | How it is measured or shown |
 |---|---|---|
-| **Agentic RAG** (grade the passages, rewrite, search again; ≤ 3 attempts) | One search often misses the decisive article | +19 % retrieval recall (19 of 20 against 16 of 20) |
-| **Jev as router** (a classifier model instead of a traditional LLM; LLM as fallback) | Faster and cheaper than an LLM prompt | 44 of 45 inputs routed right. *Future*: cost and speed against the LLM router |
+| **Agentic RAG** (grade the passages, rewrite, search again; ≤ 3 attempts) | One search often misses the decisive article | Retrieval recall 19 of 20 with the loop against 16 of 20 with one search (a relative gain of 19 %) |
+| **Jev as router** (the TypeSafe Jev Router, a classifier model served by the gateway, instead of an LLM; an LLM as fallback) | Faster and cheaper than an LLM prompt | 44 of 45 inputs routed right. *Future*: cost and speed against the LLM router |
 | **Human-in-the-loop** (the run pauses until the DPO decides) | A register entry is a human decision, not the requester's | Automated tests check that only the DPO's approval writes the register |
 | **One Postgres in Docker** (corpus, register, threads, memory) | One command gives every machine the same database | A clean machine runs the app with one command; the hosted database uses the same schema |
 | **Model-agnostic setup** (every model is one line in `config/models.yaml`) | Swap a model without a code change | Done three times during the project, no code touched. *Future*: a model-swap evaluation |
@@ -150,11 +157,11 @@ The app is deployed on Render. The Postgres database is hosted on Neon (Frankfur
 
 ## 6. Production readiness and error handling
 
-Two things keep the app healthy once it runs for longer than a demo. One rule governs every failure: nothing invents data or hides an error. The real error is logged. The trace or the page says what happened. The result is never one that looks fine while something went wrong.
+Two things keep the app healthy once it runs for longer than a demo: a retention job prunes finished conversations older than 30 days (the register and the memory are records and stay), and a summariser condenses a thread once it passes 60,000 tokens, never the request itself. One rule governs every failure: nothing invents data or hides an error. The real error is logged. The trace or the page says what happened. The result is never one that looks fine while something went wrong.
 
 ![Production readiness and error handling](docs/images/ops_cards.png)
 
-These behaviours are covered by the automated tests. The retention command and the housekeeping scripts are in [TECHNICAL.md](TECHNICAL.md).
+Every step of a run is checkpointed in Postgres, so a run that dies mid-way resumes from the last completed step. A failed tool call reaches the agent as text; it can retry or say what it could not check. These behaviours are covered by the automated tests. The retention command and the housekeeping scripts are in [TECHNICAL.md](TECHNICAL.md).
 
 ## 7. Guardrails against injection
 
@@ -214,3 +221,7 @@ These guardrails lower the risk; they do not remove it. Fixed patterns and a cla
 - A cost and speed comparison of the Jev router against the LLM router.
 - A model-swap evaluation: the same test sets with other models in the worker and embedding slots.
 - A third agent that tracks changes to the EU AI Act and updates the corpus.
+
+## Related projects
+
+This is the third of three portfolio projects. The [German Bureaucracy Navigator](https://github.com/aishwaryamuralikrishnan/German_Bureaucracy_Navigator) is a single-agent RAG and tool-calling assistant with a grounding check and an evaluation harness. [Interview Practice AI](https://github.com/aishwaryamuralikrishnan/Interview_Practice_AI_App) is a Next.js app built on structured model outputs that are checked in code. This project takes the retrieval and evaluation ideas of the first into a multi-agent workflow with a human decision in it.
