@@ -7,7 +7,7 @@ import Link from "next/link";
 export const metadata = { title: "Privacy notice · Compliance Assistant" };
 
 const RETENTION_DAYS = 30;
-const REPO = "https://github.com/aishwaryamuralikrishnan/Compliance_Assessment_Agent";
+const REPO = "https://github.com/aishwaryamuralikrishnan/Compliance_Assistant";
 
 export default function PrivacyPage() {
   return (
@@ -50,7 +50,7 @@ export default function PrivacyPage() {
 
         <section className="card pad">
           <h3>Your rights and whom to ask</h3>
-          <p>Under the GDPR you can ask what the demo holds about you, have it corrected or deleted, or object to its use. For this demo the responsible person is the author, Aishwarya Muralikrishnan; the quickest way to reach her is to open an issue in the project&apos;s repository, <a href={REPO + "/issues"} target="_blank" rel="noreferrer">github.com/aishwaryamuralikrishnan/Compliance_Assessment_Agent</a>, with the e-mail address you signed in with (do not post anything else personal in the issue). A deletion request is carried out within a few days with the project&apos;s own command (<code>admin.py forget</code>): your account, your conversations with their saved state, the assessments and review requests you made and your own memory items are deleted; a register entry or an approved memory item that the organisation keeps as its record stays, with your name replaced by &quot;deleted user&quot;. You may also complain to a data protection authority.</p>
+          <p>Under the GDPR you can ask what the demo holds about you, have it corrected or deleted, or object to its use. For this demo the responsible person is the author, Aishwarya Muralikrishnan; the quickest way to reach her is to open an issue in the project&apos;s repository, <a href={REPO + "/issues"} target="_blank" rel="noreferrer">github.com/aishwaryamuralikrishnan/Compliance_Assistant</a>, with the e-mail address you signed in with (do not post anything else personal in the issue). A deletion request is carried out within a few days with the project&apos;s own command (<code>admin.py forget</code>): your account, your conversations with their saved state, the assessments and review requests you made and your own memory items are deleted; a register entry or an approved memory item that the organisation keeps as its record stays, with your name replaced by &quot;deleted user&quot;. You may also complain to a data protection authority.</p>
         </section>
 
         <p className="small muted">The source code, the configuration that sets the data policy (<code>config/models.yaml</code>) and the gateway&apos;s documents and settings as saved on 3 November 2026 (<code>docs/compliance/</code>) are in the <a href={REPO} target="_blank" rel="noreferrer">public repository</a>, so every statement above can be checked against the code that runs.</p>
